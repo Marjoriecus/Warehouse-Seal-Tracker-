@@ -71,7 +71,7 @@ export default function Home() {
   return (
     <main className="min-h-screen bg-gray-100 p-4 font-sans text-gray-900">
       <div className="max-w-2xl mx-auto shadow-2xl rounded-[30px] overflow-hidden bg-white">
-        
+
         {/* HEADER */}
         <div className="bg-blue-600 p-10 text-center text-white">
           <h1 className="text-3xl font-black uppercase tracking-tighter">Warehouse Seal Tracker</h1>
@@ -79,29 +79,38 @@ export default function Home() {
         </div>
 
         <div className="p-8 space-y-8">
-          
+
           {/* INTAKE FORM */}
           <form onSubmit={handleIntake} className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="space-y-2">
                 <label className="text-[11px] font-black text-gray-400 uppercase tracking-widest ml-1">Seal Serial</label>
-                <input 
-                  required 
-                  className="w-full p-5 bg-gray-50 border border-gray-100 rounded-2xl font-bold text-xl text-blue-600 uppercase focus:ring-4 focus:ring-blue-100 outline-none transition" 
-                  placeholder="UL-XXXXX" 
-                  value={sealId} 
-                  onChange={(e) => setSealId(e.target.value)} 
+                <input
+                  required
+                  className="w-full p-5 bg-gray-50 border border-gray-100 rounded-2xl font-bold text-xl text-blue-600 uppercase focus:ring-4 focus:ring-blue-100 outline-none transition"
+                  placeholder="UL-XXXXX"
+                  value={sealId}
+                  onChange={(e) => setSealId(e.target.value)}
                 />
               </div>
               <div className="space-y-2">
                 <label className="text-[11px] font-black text-gray-400 uppercase tracking-widest ml-1">Intake To</label>
-                <select 
-                  className="w-full p-5 bg-gray-50 border border-gray-100 rounded-2xl font-bold text-gray-700 focus:ring-4 focus:ring-blue-100 outline-none transition appearance-none" 
-                  value={dept} 
-                  onChange={(e) => setDept(e.target.value)}
-                >
-                  {departments.map(d => <option key={d}>{d}</option>)}
-                </select>
+                <div className="relative"> {/* Added relative wrapper */}
+                  <select
+                    className="w-full p-5 bg-gray-50 border border-gray-100 rounded-2xl font-bold text-gray-700 focus:ring-4 focus:ring-blue-100 outline-none transition appearance-none"
+                    value={dept}
+                    onChange={(e) => setDept(e.target.value)}
+                  >
+                    {departments.map(d => <option key={d}>{d}</option>)}
+                  </select>
+
+                  {/* The Triangular Icon */}
+                  <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-5 text-gray-400">
+                    <svg className="h-4 w-4 fill-current" viewBox="0 0 20 20">
+                      <path d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" />
+                    </svg>
+                  </div>
+                </div>
               </div>
             </div>
             <button className="w-full bg-green-500 hover:bg-green-600 text-white p-5 rounded-2xl font-black uppercase tracking-widest shadow-xl shadow-green-200 transition active:scale-95">
@@ -110,11 +119,11 @@ export default function Home() {
           </form>
 
           <div className="border-t border-gray-100 pt-8 space-y-6">
-            
+
             {/* FILTER TABS */}
             <div className="flex gap-2 overflow-x-auto pb-2 no-scrollbar">
               {['All', ...departments].map((d) => (
-                <button 
+                <button
                   key={d}
                   onClick={() => setViewFilter(d)}
                   className={`px-5 py-2.5 rounded-full text-[11px] font-black transition whitespace-nowrap uppercase tracking-tighter ${viewFilter === d ? 'bg-blue-600 text-white shadow-lg shadow-blue-200' : 'bg-gray-100 text-gray-400 hover:bg-gray-200'}`}
@@ -127,7 +136,7 @@ export default function Home() {
             {/* SEARCH & CSV EXPORT */}
             <div className="flex gap-3">
               <div className="relative flex-1">
-                <input 
+                <input
                   className="w-full p-4 pl-12 bg-gray-50 border border-gray-100 rounded-2xl text-sm font-bold outline-none focus:ring-4 focus:ring-blue-500/10 transition"
                   placeholder="Search Seal ID..."
                   value={searchTerm}
@@ -135,7 +144,7 @@ export default function Home() {
                 />
                 <span className="absolute left-4 top-4.5 opacity-30">🔍</span>
               </div>
-              <button 
+              <button
                 onClick={exportToCSV}
                 className="bg-slate-900 text-white px-6 rounded-2xl text-[11px] font-black hover:bg-slate-800 transition uppercase tracking-widest"
               >
@@ -154,11 +163,11 @@ export default function Home() {
                     </p>
                   </div>
                   <div className="flex items-center gap-4">
-                    <button 
-                      onClick={() => markAsUsed(seal.id)} 
+                    <button
+                      onClick={() => markAsUsed(seal.id)}
                       className="bg-orange-50 text-orange-600 px-4 py-2 rounded-xl text-[10px] font-black uppercase hover:bg-orange-500 hover:text-white transition shadow-sm"
                     >
-                      Apply  
+                      Apply
                     </button>
                     <button onClick={() => deleteSeal(seal.id)} className="text-gray-200 hover:text-red-500 transition text-xl">🗑️</button>
                   </div>
