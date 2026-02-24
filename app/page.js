@@ -51,25 +51,42 @@ export default function Home() {
     scanner.render((text) => { setSealId(text); scanner.clear(); });
   };
 
+  // --- EXPORT LOGIC ---
+  const exportToCSV = () => {
+    const headers = ["Seal ID", "Dept", "Status", "Date"];
+    const rows = sealsList.map(s => [s.seal_id, s.department, s.status, new Date(s.created_at).toLocaleDateString()]);
+    const csvContent = [headers, ...rows].map(e => e.join(",")).join("\n");
+    const blob = new Blob([csvContent], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `Warehouse_Report_${new Date().toLocaleDateString()}.csv`;
+    link.click();
+  };
+
   return (
     <main className="min-h-screen bg-gray-100 p-4 font-sans text-gray-900">
       <div className="max-w-2xl mx-auto shadow-2xl rounded-[30px] overflow-hidden bg-white">
         
-        {/* ORIGINAL BLUE HEADER */}
-        <div className="bg-blue-600 p-8 text-center text-white">
+        {/* ORIGINAL BLUE HEADER WITH EXPORT BUTTON */}
+        <div className="bg-blue-600 p-8 text-center text-white relative">
+          <button 
+            onClick={exportToCSV}
+            className="absolute top-4 right-6 bg-blue-500 hover:bg-blue-400 text-[10px] font-bold py-1 px-3 rounded-full border border-blue-300 transition"
+          >
+            📊 EXCEL/CSV
+          </button>
           <h1 className="text-2xl font-black uppercase tracking-tight">Warehouse Seal Tracker</h1>
           <p className="text-xs opacity-80 mt-1">Full-Stack Inventory System</p>
         </div>
 
         <div className="p-6 space-y-6">
-          {/* SCANNER AREA */}
           <div id="reader" className="overflow-hidden rounded-xl bg-gray-50"></div>
           
           <button onClick={startScanner} className="w-full border-2 border-dashed border-blue-400 text-blue-600 py-4 rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-blue-50 transition">
             📷 Open Camera Scanner
           </button>
 
-          {/* INPUT FIELDS */}
           <form onSubmit={handleIntake} className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-1">
@@ -92,7 +109,7 @@ export default function Home() {
 
           <hr className="border-gray-100" />
 
-          {/* SEARCH BAR (CLEAN STYLE) */}
+          {/* SEARCH BAR */}
           <div className="relative">
             <input 
               className="w-full p-3 pl-10 bg-gray-50 border border-gray-100 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-100 transition"
