@@ -113,7 +113,7 @@ export default function Home() {
                 </div>
               </div>
             </div>
-            <button className="w-full bg-green-500 hover:bg-green-600 text-white p-5 rounded-2xl font-black uppercase tracking-widest shadow-xl shadow-green-200 transition active:scale-95">
+            <button className="w-full bg-green-500 hover:bg-green-600 text-white p-5 rounded-2xl font-black uppercase tracking-widest transition active:scale-95">
               ✅ Add to Inventory
             </button>
           </form>
