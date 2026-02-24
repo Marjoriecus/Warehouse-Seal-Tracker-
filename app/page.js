@@ -5,11 +5,14 @@ import { Html5QrcodeScanner } from 'html5-qrcode';
 
 export default function Home() {
   const [sealId, setSealId] = useState('');
-  const [dept, setDept] = useState('Dept A');
+  const [dept, setDept] = useState('Inbound Department'); // Default updated
   const [sealsList, setSealsList] = useState([]);
   const [loading, setLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [viewFilter, setViewFilter] = useState('All');
+
+  // Updated Department List
+  const departments = ['Inbound Department', 'Shipping Department', 'Bella Canva'];
 
   const fetchSeals = async () => {
     const { data, error } = await supabase
@@ -77,13 +80,11 @@ export default function Home() {
         </div>
 
         <div className="p-6 space-y-6">
-          {/* SCANNER */}
           <div id="reader" className="overflow-hidden rounded-xl bg-gray-50"></div>
           <button onClick={startScanner} className="w-full border-2 border-dashed border-blue-400 text-blue-600 py-4 rounded-xl font-bold hover:bg-blue-50 transition">
             📷 Open Camera Scanner
           </button>
 
-          {/* INTAKE FORM */}
           <form onSubmit={handleIntake} className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-1">
@@ -93,9 +94,7 @@ export default function Home() {
               <div className="space-y-1">
                 <label className="text-[10px] font-bold text-gray-400 uppercase ml-1">Intake To</label>
                 <select className="w-full p-4 bg-gray-50 border border-gray-100 rounded-xl font-medium" value={dept} onChange={(e) => setDept(e.target.value)}>
-                  <option>Dept A</option>
-                  <option>Dept B</option>
-                  <option>Dept C</option>
+                  {departments.map(d => <option key={d}>{d}</option>)}
                 </select>
               </div>
             </div>
@@ -106,14 +105,14 @@ export default function Home() {
 
           <hr className="border-gray-100" />
 
-          {/* MANAGEMENT CONTROLS: SEARCH & EXPORT */}
+          {/* MANAGEMENT CONTROLS */}
           <div className="space-y-3">
              <div className="flex gap-2 overflow-x-auto pb-1 no-scrollbar">
-              {['All', 'Dept A', 'Dept B', 'Dept C'].map((d) => (
+              {['All', ...departments].map((d) => (
                 <button 
                   key={d}
                   onClick={() => setViewFilter(d)}
-                  className={`px-4 py-2 rounded-full text-[10px] font-bold transition ${viewFilter === d ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-500'}`}
+                  className={`px-4 py-2 rounded-full text-[10px] font-bold transition whitespace-nowrap ${viewFilter === d ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-500'}`}
                 >
                   {d}
                 </button>
@@ -131,17 +130,15 @@ export default function Home() {
                 <span className="absolute left-3 top-3 text-gray-300">🔍</span>
               </div>
               
-              {/* EXPORT BUTTON NEXT TO SEARCH */}
               <button 
                 onClick={exportToCSV}
-                className="bg-gray-900 text-white px-4 rounded-xl text-[10px] font-bold hover:bg-gray-800 transition"
+                className="bg-gray-900 text-white px-4 rounded-xl text-[10px] font-bold hover:bg-gray-800 transition uppercase"
               >
-                📊 EXCEL
+                CSV Export
               </button>
             </div>
           </div>
 
-          {/* INVENTORY LIST */}
           <div className="space-y-3 max-h-80 overflow-y-auto pr-2">
             {filteredSeals.map((seal) => (
               <div key={seal.id} className="flex justify-between items-center p-4 bg-gray-50 rounded-2xl border border-gray-100">
