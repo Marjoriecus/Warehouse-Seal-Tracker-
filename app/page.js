@@ -8,7 +8,7 @@ export default function Home() {
   const [dept, setDept] = useState('Dept A');
   const [sealsList, setSealsList] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [searchTerm, setSearchTerm] = useState(''); // State for search
+  const [searchTerm, setSearchTerm] = useState('');
 
   const fetchSeals = async () => {
     const { data, error } = await supabase
@@ -20,8 +20,6 @@ export default function Home() {
 
   useEffect(() => { fetchSeals(); }, []);
 
-  // --- SEARCH FILTER LOGIC ---
-  // This looks at your list and only shows what matches the search box
   const filteredSeals = sealsList.filter(seal => 
     seal.seal_id.toLowerCase().includes(searchTerm.toLowerCase())
   );
@@ -42,7 +40,7 @@ export default function Home() {
   };
 
   const deleteSeal = async (id) => {
-    if (confirm("Permanently delete this seal record?")) {
+    if (confirm("Delete this record?")) {
       const { error } = await supabase.from('seals').delete().eq('id', id);
       if (!error) fetchSeals();
     }
@@ -53,90 +51,72 @@ export default function Home() {
     scanner.render((text) => { setSealId(text); scanner.clear(); });
   };
 
-  const exportToCSV = () => {
-    const headers = ["Seal ID", "Dept", "Status", "Date"];
-    const rows = sealsList.map(s => [s.seal_id, s.department, s.status, new Date(s.created_at).toLocaleDateString()]);
-    const csvContent = [headers, ...rows].map(e => e.join(",")).join("\n");
-    const blob = new Blob([csvContent], { type: 'text/csv' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `Warehouse_Report.csv`;
-    link.click();
-  };
-
   return (
-    <main className="min-h-screen bg-gray-100 p-4 md:p-10 font-sans text-gray-900">
-      <div className="max-w-3xl mx-auto space-y-6">
+    <main className="min-h-screen bg-gray-100 p-4 font-sans text-gray-900">
+      <div className="max-w-2xl mx-auto shadow-2xl rounded-[30px] overflow-hidden bg-white">
         
-        {/* TOP SECTION: SCAN & ADD */}
-        <div className="bg-white shadow-xl rounded-3xl p-6 border border-gray-200">
-          <h1 className="text-xl font-black text-blue-700 mb-4 uppercase tracking-tight">Seal Intake</h1>
-          <div id="reader" className="mb-4 rounded-2xl overflow-hidden bg-gray-50"></div>
-          <button onClick={startScanner} className="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-xl font-bold mb-4 transition">
-            📷 Open Scanner
-          </button>
-          
-          <form onSubmit={handleIntake} className="space-y-3">
-            <input required className="w-full p-4 border rounded-xl font-mono bg-gray-50" placeholder="Seal ID" value={sealId} onChange={(e) => setSealId(e.target.value)} />
-            <select className="w-full p-4 border rounded-xl bg-gray-50" value={dept} onChange={(e) => setDept(e.target.value)}>
-              <option>Dept A</option>
-              <option>Dept B</option>
-              <option>Dept C</option>
-            </select>
-            <button disabled={loading} className="w-full bg-green-600 text-white p-4 rounded-xl font-bold shadow-lg">
-              {loading ? "SAVING..." : "ADD TO STOCK"}
-            </button>
-          </form>
+        {/* ORIGINAL BLUE HEADER */}
+        <div className="bg-blue-600 p-8 text-center text-white">
+          <h1 className="text-2xl font-black uppercase tracking-tight">Warehouse Seal Tracker</h1>
+          <p className="text-xs opacity-80 mt-1">Full-Stack Inventory System</p>
         </div>
 
-        {/* BOTTOM SECTION: INVENTORY & SEARCH */}
-        <div className="bg-white shadow-xl rounded-3xl overflow-hidden border border-gray-200">
-          <div className="p-6 bg-gray-900 space-y-4">
-            <div className="flex justify-between items-center">
-               <h2 className="text-white font-bold uppercase text-sm tracking-widest">Inventory List</h2>
-               <button onClick={exportToCSV} className="text-xs bg-gray-700 text-gray-300 px-3 py-1 rounded-md hover:bg-gray-600">CSV Export</button>
+        <div className="p-6 space-y-6">
+          {/* SCANNER AREA */}
+          <div id="reader" className="overflow-hidden rounded-xl bg-gray-50"></div>
+          
+          <button onClick={startScanner} className="w-full border-2 border-dashed border-blue-400 text-blue-600 py-4 rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-blue-50 transition">
+            📷 Open Camera Scanner
+          </button>
+
+          {/* INPUT FIELDS */}
+          <form onSubmit={handleIntake} className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold text-gray-400 uppercase ml-1">Seal Serial</label>
+                <input required className="w-full p-4 bg-gray-50 border border-gray-100 rounded-xl font-medium" placeholder="Enter or Scan ID" value={sealId} onChange={(e) => setSealId(e.target.value)} />
+              </div>
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold text-gray-400 uppercase ml-1">Department</label>
+                <select className="w-full p-4 bg-gray-50 border border-gray-100 rounded-xl font-medium" value={dept} onChange={(e) => setDept(e.target.value)}>
+                  <option>Dept A</option>
+                  <option>Dept B</option>
+                  <option>Dept C</option>
+                </select>
+              </div>
             </div>
-            
-            {/* --- THE SEARCH BAR --- */}
-            <div className="relative">
-              <input 
-                className="w-full p-3 pl-10 rounded-xl bg-gray-800 text-white border border-gray-700 outline-none focus:border-blue-500 transition"
-                placeholder="Search Seal ID..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-              />
-              <span className="absolute left-3 top-3.5 opacity-40">🔍</span>
-            </div>
+            <button className="w-full bg-green-600 text-white p-4 rounded-xl font-black uppercase tracking-widest shadow-lg shadow-green-100 active:scale-95 transition">
+              ✅ Add to Inventory
+            </button>
+          </form>
+
+          <hr className="border-gray-100" />
+
+          {/* SEARCH BAR (CLEAN STYLE) */}
+          <div className="relative">
+            <input 
+              className="w-full p-3 pl-10 bg-gray-50 border border-gray-100 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-100 transition"
+              placeholder="Search by Seal ID..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
+            <span className="absolute left-3 top-3 text-gray-300">🔍</span>
           </div>
 
-          <div className="max-h-[500px] overflow-y-auto">
-            <table className="w-full text-left">
-              <tbody className="divide-y divide-gray-100">
-                {filteredSeals.map((seal) => (
-                  <tr key={seal.id} className="hover:bg-blue-50 transition-colors">
-                    <td className="p-4">
-                      <p className="font-mono font-bold text-blue-600">{seal.seal_id}</p>
-                      <p className="text-[10px] text-gray-400 font-bold uppercase">{seal.department}</p>
-                    </td>
-                    <td className="p-4">
-                       <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${seal.status === 'Applied' ? 'bg-orange-100 text-orange-600' : 'bg-green-100 text-green-600'}`}>
-                        {seal.status}
-                      </span>
-                    </td>
-                    <td className="p-4 text-right">
-                      <div className="flex justify-end items-center gap-3">
-                        <button onClick={() => markAsUsed(seal.id)} className="bg-orange-500 hover:bg-orange-600 text-white px-3 py-1 rounded-lg text-xs font-bold transition">Apply</button>
-                        <button onClick={() => deleteSeal(seal.id)} className="text-red-300 hover:text-red-500 transition text-lg">🗑️</button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-                {filteredSeals.length === 0 && (
-                  <tr><td colSpan="3" className="p-10 text-center text-gray-400 text-sm italic">No seals found matching that ID</td></tr>
-                )}
-              </tbody>
-            </table>
+          {/* LIVE LIST */}
+          <div className="space-y-3 max-h-80 overflow-y-auto pr-2">
+            {filteredSeals.map((seal) => (
+              <div key={seal.id} className="flex justify-between items-center p-4 bg-gray-50 rounded-2xl border border-gray-100">
+                <div>
+                  <p className="font-mono font-bold text-blue-700">{seal.seal_id}</p>
+                  <p className="text-[10px] font-bold text-gray-400 uppercase">{seal.department} • {seal.status}</p>
+                </div>
+                <div className="flex gap-2">
+                  <button onClick={() => markAsUsed(seal.id)} className="bg-orange-100 text-orange-600 px-3 py-1 rounded-lg text-[10px] font-black uppercase hover:bg-orange-200 transition">Apply</button>
+                  <button onClick={() => deleteSeal(seal.id)} className="text-gray-300 hover:text-red-500 transition">🗑️</button>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       </div>
