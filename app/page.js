@@ -158,7 +158,7 @@ export default function Home() {
                       onClick={() => markAsUsed(seal.id)} 
                       className="bg-orange-50 text-orange-600 px-4 py-2 rounded-xl text-[10px] font-black uppercase hover:bg-orange-500 hover:text-white transition shadow-sm"
                     >
-                      Used 
+                      Apply  
                     </button>
                     <button onClick={() => deleteSeal(seal.id)} className="text-gray-200 hover:text-red-500 transition text-xl">🗑️</button>
                   </div>
