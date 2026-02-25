@@ -126,7 +126,7 @@ export default function Home() {
                 <button
                   key={d}
                   onClick={() => setViewFilter(d)}
-                  className={`px-5 py-2.5 rounded-full text-[11px] font-black transition whitespace-nowrap uppercase tracking-tighter ${viewFilter === d ? 'bg-blue-600 text-white shadow-lg shadow-blue-200' : 'bg-gray-100 text-gray-400 hover:bg-gray-200'}`}
+                  className={`px-5 py-2.5 rounded-full text-[11px] font-black transition whitespace-nowrap uppercase tracking-tighter ${viewFilter === d ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-400 hover:bg-gray-200'}`}
                 >
                   {d}
                 </button>
