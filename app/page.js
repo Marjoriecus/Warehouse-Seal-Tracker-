@@ -11,7 +11,7 @@ export default function Home() {
   const [viewFilter, setViewFilter] = useState('All');
 
   // Your Custom Departments
-  const departments = ['Inbound Department', 'Shipping Department', 'Bella Canva'];
+  const departments = ['Inbound Department', 'Shipping Department', 'Outbound Deparment'];
 
   const fetchSeals = async () => {
     const { data, error } = await supabase
