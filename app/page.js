@@ -203,8 +203,23 @@ export default function Home() {
   };
 
   const exportToCSV = () => {
-    const headers = ["Seal ID", "Dept", "Status", "Date", "Comments"];
-    const rows = sealsList.map(s => [s.seal_id, s.department, s.status, new Date(s.created_at).toLocaleDateString(), s.comments || ""]);
+    const headers = ["Seal ID", "Dept", "Status", "Created Date", "Issued By", "Issuer Title", "Container #", "Dock Door", "Company", "Applied By", "Applied Title", "Applied At", "Original Comments"];
+    const rows = sealsList.map(s => [
+      s.seal_id, 
+      s.department, 
+      s.status, 
+      new Date(s.created_at).toLocaleDateString(), 
+      s.issuer_name || "N/A",
+      s.issuer_title || "N/A",
+      s.container_num || "N/A",
+      s.dock_door || "N/A",
+      s.company_name || "N/A",
+      s.applied_by_name || "N/A",
+      s.applied_by_name || "Pending",
+      s.applied_by_title || "N/A",
+      s.applied_at ? new Date(s.applied_at). toLocaleString() : "N/A",
+      `"${(s.comments || "").replace(/"/g, '""')}"`
+    ]);
     const csvContent = [headers, ...rows].map(e => e.join(",")).join("\n");
     const blob = new Blob([csvContent], { type: 'text/csv' });
     const url = URL.createObjectURL(blob);
