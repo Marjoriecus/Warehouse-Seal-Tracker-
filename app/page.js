@@ -3,19 +3,27 @@ import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabaseClient';
 
 export default function Home() {
+  // --- AUTH & ROLE STATE ---
+  const [user, setUser] = useState(null);
+  const [userRole, setUserRole] = useState(null);
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+
   // --- APP STATE ---
   const [sealId, setSealId] = useState('');
   const [dept, setDept] = useState('Inbound Department');
   const [sealsList, setSealsList] = useState([]);
   const [loading, setLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
+
+  // This state controls which department you are currently looking at
   const [viewFilter, setViewFilter] = useState('All');
 
   // --- WORKFLOW STATE ---
-  const [currentView, setCurrentView] = useState('LIST'); 
+  const [currentView, setCurrentView] = useState('LIST');
   const [activeSeal, setActiveSeal] = useState(null);
   const [issuerInfo, setIssuerInfo] = useState({ name: '', title: '' });
-  
+
   // --- MODAL & UPLOAD STATE ---
   const [viewingSeal, setViewingSeal] = useState(null);
   const [photoFile, setPhotoFile] = useState(null);
@@ -26,7 +34,52 @@ export default function Home() {
 
   const departments = ['Inbound Department', 'Shipping Department', 'Outbound Deparment'];
 
-  // --- DATA FETCHING ---
+  // --- 1. AUTHENTICATION LOGIC ---
+  useEffect(() => {
+    const getSession = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session) {
+        setUser(session.user);
+        fetchUserRole(session.user.id);
+      }
+    };
+    getSession();
+
+    const { data: authListener } = supabase.auth.onAuthStateChange((event, session) => {
+      if (session) {
+        setUser(session.user);
+        fetchUserRole(session.user.id);
+      } else {
+        setUser(null);
+        setUserRole(null);
+      }
+    });
+
+    return () => authListener.subscription.unsubscribe();
+  }, []);
+
+  const fetchUserRole = async (userId) => {
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', userId)
+      .single();
+    if (!error && data) setUserRole(data.role);
+  };
+
+  const handleLogin = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error) alert(error.message);
+    setLoading(false);
+  };
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+  };
+
+  // --- 2. DATA FETCHING ---
   const fetchSeals = async () => {
     const { data, error } = await supabase
       .from('seals')
@@ -35,7 +88,10 @@ export default function Home() {
     if (!error) setSealsList(data);
   };
 
-  // FETCH NOTES WHEN MODAL OPENS
+  useEffect(() => {
+    if (user) fetchSeals();
+  }, [user]);
+
   useEffect(() => {
     if (viewingSeal) {
       fetchNotes(viewingSeal.id);
@@ -53,16 +109,15 @@ export default function Home() {
     if (!error) setCorrectionNotes(data);
   };
 
-  useEffect(() => { fetchSeals(); }, []);
-
-  // --- SEARCH & FILTER LOGIC ---
+  // --- SEARCH & TOGGLE FILTER LOGIC ---
   const filteredSeals = sealsList.filter(seal => {
     const matchesSearch = seal.seal_id.toLowerCase().includes(searchTerm.toLowerCase());
+    // This is the logic for the toggle:
     const matchesDept = viewFilter === 'All' || seal.department === viewFilter;
     return matchesSearch && matchesDept;
   });
 
-  // --- STEP 1: ADD SEAL TO INVENTORY ---
+  // --- ACTIONS ---
   const handleIntake = async (e) => {
     e.preventDefault();
     if (!sealId) return;
@@ -77,7 +132,13 @@ export default function Home() {
     }
   };
 
-  // --- STEP 2: START APPLICATION PROCESS ---
+  const deleteSeal = async (id) => {
+    if (confirm("Delete this record permanently?")) {
+      const { error } = await supabase.from('seals').delete().eq('id', id);
+      if (!error) fetchSeals();
+    }
+  };
+
   const startApplyProcess = (seal) => {
     setActiveSeal(seal);
     setCurrentView('ISSUER');
@@ -93,23 +154,15 @@ export default function Home() {
     setCurrentView('DETAILS');
   };
 
-  // --- STEP 3: FINAL SAVE WITH COMPRESSION ---
   const handleFinalSave = async (e) => {
     e.preventDefault();
     setLoading(true);
     const formData = new FormData(e.target);
     const details = Object.fromEntries(formData);
-    const MAX_FILE_SIZE = 2 * 1024 * 1024; // 2MB Limit
 
     let finalPhotoUrl = null;
 
     if (photoFile) {
-      if (photoFile.size > MAX_FILE_SIZE) {
-        alert("Original file too large! Please use a photo under 2MB.");
-        setLoading(false);
-        return;
-      }
-
       try {
         const compressedBlob = await new Promise((resolve, reject) => {
           const reader = new FileReader();
@@ -119,7 +172,7 @@ export default function Home() {
             img.src = event.target.result;
             img.onload = () => {
               const canvas = document.createElement('canvas');
-              const MAX_WIDTH = 800; 
+              const MAX_WIDTH = 800;
               const scaleSize = MAX_WIDTH / img.width;
               canvas.width = MAX_WIDTH;
               canvas.height = img.height * scaleSize;
@@ -160,7 +213,7 @@ export default function Home() {
         company_name: details.companyName,
         applied_by_name: details.appliedByName,
         applied_by_title: details.appliedByTitle,
-        comments: details.comments, 
+        comments: details.comments,
         photo_url: finalPhotoUrl,
         applied_at: new Date()
       })
@@ -168,56 +221,41 @@ export default function Home() {
 
     setLoading(false);
     if (!error) {
-      alert("Success! Record Saved & Compressed.");
+      alert("Success! Record Saved.");
       setCurrentView('LIST');
       setActiveSeal(null);
       setPhotoFile(null);
       fetchSeals();
-    } else {
-      alert("Database error: " + error.message);
     }
   };
 
-  // --- STEP 4: POST CORRECTION NOTE ---
   const handleAddCorrection = async (e) => {
     e.preventDefault();
     if (!newNote.trim()) return;
-
     const { error } = await supabase
       .from('seal_notes')
       .insert([{ seal_id: viewingSeal.id, note_text: newNote }]);
-
     if (!error) {
       setNewNote('');
-      fetchNotes(viewingSeal.id); // Refresh thread
-    } else {
-      alert("Error posting correction: " + error.message);
-    }
-  };
-
-  const deleteSeal = async (id) => {
-    if (confirm("Delete this record permanently?")) {
-      const { error } = await supabase.from('seals').delete().eq('id', id);
-      if (!error) fetchSeals();
+      fetchNotes(viewingSeal.id);
     }
   };
 
   const exportToCSV = () => {
     const headers = ["Seal ID", "Dept", "Status", "Created Date", "Issued By", "Issuer Title", "Container #", "Dock Door", "Company", "Applied By", "Applied Title", "Applied At", "Original Comments"];
     const rows = sealsList.map(s => [
-      s.seal_id, 
-      s.department, 
-      s.status, 
-      new Date(s.created_at).toLocaleDateString(), 
+      s.seal_id,
+      s.department,
+      s.status,
+      new Date(s.created_at).toLocaleDateString(),
       s.issuer_name || "N/A",
       s.issuer_title || "N/A",
       s.container_num || "N/A",
       s.dock_door || "N/A",
       s.company_name || "N/A",
       s.applied_by_name || "N/A",
-      s.applied_by_name || "Pending",
       s.applied_by_title || "N/A",
-      s.applied_at ? new Date(s.applied_at). toLocaleString() : "N/A",
+      s.applied_at ? new Date(s.applied_at).toLocaleString() : "N/A",
       `"${(s.comments || "").replace(/"/g, '""')}"`
     ]);
     const csvContent = [headers, ...rows].map(e => e.join(",")).join("\n");
@@ -229,20 +267,48 @@ export default function Home() {
     link.click();
   };
 
+  if (!user) {
+    return (
+      <main className="min-h-screen bg-slate-100 flex items-center justify-center p-4">
+        <div className="max-w-md w-full bg-white shadow-2xl rounded-[40px] p-12 space-y-8">
+          <div className="text-center">
+            <h1 className="text-3xl font-black uppercase tracking-tighter text-slate-900">Seal Tracker</h1>
+            <p className="text-xs font-bold text-slate-400 uppercase mt-2">Authorized Access Only</p>
+          </div>
+          <form onSubmit={handleLogin} className="space-y-4">
+            <input
+              type="email" placeholder="Email" required
+              className="w-full p-5 bg-slate-50 border border-slate-100 rounded-3xl font-bold outline-none"
+              value={email} onChange={(e) => setEmail(e.target.value)}
+            />
+            <input
+              type="password" placeholder="Password" required
+              className="w-full p-5 bg-slate-50 border border-slate-100 rounded-3xl font-bold outline-none"
+              value={password} onChange={(e) => setPassword(e.target.value)}
+            />
+            <button disabled={loading} className="w-full bg-slate-900 text-white p-5 rounded-3xl font-black uppercase tracking-widest hover:bg-slate-800 transition">
+              {loading ? 'Verifying...' : 'Login'}
+            </button>
+          </form>
+        </div>
+      </main>
+    );
+  }
+
   return (
     <main className="min-h-screen bg-slate-100 p-4 font-sans text-slate-900">
       <div className="max-w-2xl mx-auto shadow-2xl rounded-[40px] overflow-hidden bg-white relative border border-white">
 
-        {/* HEADER SECTION */}
-        <div className="bg-slate-900 p-12 text-center text-white">
+        <div className="bg-slate-900 p-10 text-center text-white relative">
+          <button onClick={handleLogout} className="absolute top-6 right-6 text-[10px] font-black uppercase bg-slate-800 px-4 py-2 rounded-full hover:bg-red-500 transition">Logout</button>
           <h1 className="text-4xl font-black uppercase tracking-tighter">Seal Tracker</h1>
-          <p className="text-[10px] font-bold uppercase tracking-[0.3em] opacity-60 mt-2">Warehouse Operations • 2026</p>
+          <p className="text-[10px] font-bold uppercase tracking-[0.3em] opacity-60 mt-2">
+            Role: <span className="text-blue-400">{userRole || 'Loading...'}</span>
+          </p>
         </div>
 
-        {/* --- MAIN LIST VIEW --- */}
         {currentView === 'LIST' && (
           <div className="p-8 space-y-10">
-            {/* INTAKE FORM */}
             <form onSubmit={handleIntake} className="space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-2">
@@ -255,15 +321,24 @@ export default function Home() {
                     onChange={(e) => setSealId(e.target.value)}
                   />
                 </div>
-                <div className="space-y-2">
+                <div className="space-y-2 relative"> { /* Added 'relative' here */}
                   <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest ml-1">Assign to Dept</label>
-                  <select
-                    className="w-full p-5 bg-slate-50 border border-slate-100 rounded-3xl font-bold text-slate-700 outline-none appearance-none cursor-pointer"
-                    value={dept}
-                    onChange={(e) => setDept(e.target.value)}
-                  >
-                    {departments.map(d => <option key={d}>{d}</option>)}
-                  </select>
+                  <div className="relative"> { /* Wrapper for the arrow */}
+                    <select
+                      className="w-full p-5 bg-slate-50 border border-slate-100 rounded-3xl font-bold text-slate-700 outline-none appearance-none cursor-pointer"
+                      value={dept}
+                      onChange={(e) => setDept(e.target.value)}
+                    >
+                      {departments.map(d => <option key={d}>{d}</option>)}
+                    </select>
+
+                    {/* This is your Triangle icon */}
+                    <div className="absolute right-6 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="m6 9 6 6 6-6" />
+                      </svg>
+                    </div>
+                  </div>
                 </div>
               </div>
               <button disabled={loading} className="w-full bg-blue-600 hover:bg-blue-700 text-white p-5 rounded-3xl font-black uppercase tracking-widest transition active:scale-[0.98] disabled:opacity-50">
@@ -271,12 +346,20 @@ export default function Home() {
               </button>
             </form>
 
-            {/* INVENTORY & FILTERS */}
             <div className="border-t border-slate-100 pt-10 space-y-6">
-              <div className="flex gap-2 overflow-x-auto pb-4 scrollbar-hide">
-                {['All', ...departments].map((d) => (
-                  <button key={d} onClick={() => setViewFilter(d)} className={`px-6 py-3 rounded-full text-[10px] font-black uppercase tracking-tight transition whitespace-nowrap ${viewFilter === d ? 'bg-slate-900 text-white' : 'bg-slate-50 text-slate-400 hover:bg-slate-100'}`}>
-                    {d}
+
+              {/* --- NEW TOGGLE FILTER BAR --- */}
+              <div className="flex flex-wrap gap-2 p-1 bg-slate-100 rounded-2xl">
+                {['All', ...departments].map((filter) => (
+                  <button
+                    key={filter}
+                    onClick={() => setViewFilter(filter)}
+                    className={`flex-1 py-3 px-4 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all ${viewFilter === filter
+                        ? 'bg-white text-blue-600 shadow-sm scale-100'
+                        : 'text-slate-400 hover:text-slate-600'
+                      }`}
+                  >
+                    {filter === 'All' ? 'View All' : filter.split(' ')[0]}
                   </button>
                 ))}
               </div>
@@ -284,78 +367,77 @@ export default function Home() {
               <div className="flex gap-4">
                 <input
                   className="flex-1 p-5 bg-slate-50 border border-slate-100 rounded-2xl text-sm font-bold outline-none focus:ring-4 focus:ring-slate-100"
-                  placeholder="Quick Search..."
+                  placeholder={`Search ${viewFilter}...`}
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                 />
-                <button onClick={exportToCSV} className="bg-white border-2 border-slate-100 text-slate-900 px-6 rounded-2xl text-[10px] font-black uppercase hover:bg-slate-50">CSV</button>
+                {userRole === 'admin' && (
+                  <button onClick={exportToCSV} className="bg-white border-2 border-slate-100 text-slate-900 px-6 rounded-2xl text-[10px] font-black uppercase hover:bg-slate-50">CSV</button>
+                )}
               </div>
 
               <div className="space-y-4 max-h-[600px] overflow-y-auto pr-2 custom-scrollbar">
-                {filteredSeals.map((seal) => (
-                  <div key={seal.id} className="group flex justify-between items-center p-6 bg-white rounded-[32px] border border-slate-100 shadow-sm hover:shadow-md transition">
-                    <div>
-                      <button 
-                        onClick={() => setViewingSeal(seal)}
-                        className="font-mono font-black text-xl text-blue-600 tracking-tighter hover:text-blue-800 hover:underline text-left block"
-                      >
-                        {seal.seal_id}
-                      </button>
-                      <p className="text-[10px] font-black text-slate-300 uppercase tracking-widest mt-1">
-                        {seal.department} • <span className={seal.status === 'Applied' ? 'text-orange-500' : 'text-green-500'}>{seal.status}</span>
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-4">
-                      {seal.status !== 'Applied' ? (
-                        <button onClick={() => startApplyProcess(seal)} className="bg-orange-50 text-orange-600 px-6 py-3 rounded-2xl text-[10px] font-black uppercase hover:bg-orange-500 hover:text-white transition shadow-sm">
-                          Apply
+                {filteredSeals.length > 0 ? (
+                  filteredSeals.map((seal) => (
+                    <div key={seal.id} className="group flex justify-between items-center p-6 bg-white rounded-[32px] border border-slate-100 shadow-sm hover:shadow-md transition">
+                      <div>
+                        <button
+                          onClick={() => setViewingSeal(seal)}
+                          className="font-mono font-black text-xl text-blue-600 tracking-tighter hover:text-blue-800 hover:underline text-left block"
+                        >
+                          {seal.seal_id}
                         </button>
-                      ) : (
-                        <span className="bg-slate-50 text-slate-400 px-4 py-2 rounded-xl text-[9px] font-black uppercase">Complete</span>
-                      )}
-                      <button onClick={() => deleteSeal(seal.id)} className="text-slate-200 hover:text-red-500 transition-colors p-2 text-xl">🗑️</button>
+                        <p className="text-[10px] font-black text-slate-300 uppercase tracking-widest mt-1">
+                          {seal.department} • <span className={seal.status === 'Applied' ? 'text-orange-500' : 'text-green-500'}>{seal.status}</span>
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-4">
+                        {seal.status !== 'Applied' ? (
+                          <button onClick={() => startApplyProcess(seal)} className="bg-orange-50 text-orange-600 px-6 py-3 rounded-2xl text-[10px] font-black uppercase hover:bg-orange-500 hover:text-white transition shadow-sm">
+                            Apply
+                          </button>
+                        ) : (
+                          <span className="bg-slate-50 text-slate-400 px-4 py-2 rounded-xl text-[9px] font-black uppercase">Complete</span>
+                        )}
+                        {userRole === 'admin' && (
+                          <button onClick={() => deleteSeal(seal.id)} className="text-slate-200 hover:text-red-500 transition-colors p-2 text-xl">🗑️</button>
+                        )}
+                      </div>
                     </div>
+                  ))
+                ) : (
+                  <div className="text-center py-20 bg-slate-50 rounded-[40px] border-2 border-dashed border-slate-200">
+                    <p className="text-xs font-black uppercase text-slate-400 tracking-[0.2em]">No seals found in {viewFilter}</p>
                   </div>
-                ))}
+                )}
               </div>
             </div>
           </div>
         )}
 
-        {/* --- FORM VIEW: ISSUER --- */}
+        {/* ISSUER VIEW */}
         {currentView === 'ISSUER' && (
-          <div className="p-12 space-y-10 animate-in fade-in zoom-in duration-300">
-            <div className="space-y-2">
-              <h2 className="text-3xl font-black uppercase text-slate-900 leading-none">Seal Issued By</h2>
-              <div className="h-2 w-20 bg-blue-600 rounded-full"></div>
-            </div>
+          <div className="p-12 space-y-10">
+            <h2 className="text-3xl font-black uppercase text-slate-900">Seal Issued By</h2>
             <form onSubmit={handleIssuerSubmit} className="space-y-8">
-              <div className="space-y-6">
-                <div className="space-y-2">
-                  <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest">Issuer Name</label>
-                  <input name="issuerName" required className="w-full p-6 bg-slate-50 border border-slate-100 rounded-3xl font-bold text-lg" placeholder="Full Name" />
-                </div>
-                <div className="space-y-2">
-                  <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest">Title</label>
-                  <input name="issuerTitle" required className="w-full p-6 bg-slate-50 border border-slate-100 rounded-3xl font-bold text-lg" placeholder="Job Title" />
-                </div>
-              </div>
+              <input name="issuerName" required className="w-full p-6 bg-slate-50 border border-slate-100 rounded-3xl font-bold" placeholder="Full Name" />
+              <input name="issuerTitle" required className="w-full p-6 bg-slate-50 border border-slate-100 rounded-3xl font-bold" placeholder="Job Title" />
               <div className="flex gap-4">
                 <button type="button" onClick={() => setCurrentView('LIST')} className="flex-1 py-6 font-black uppercase text-xs text-slate-400">Cancel</button>
-                <button type="submit" className="flex-1 bg-slate-900 text-white py-6 rounded-3xl font-black uppercase text-xs tracking-widest shadow-xl shadow-slate-200">Next Step →</button>
+                <button type="submit" className="flex-1 bg-slate-900 text-white py-6 rounded-3xl font-black uppercase text-xs tracking-widest">Next Step →</button>
               </div>
             </form>
           </div>
         )}
 
-        {/* --- FORM VIEW: DETAILS --- */}
+        {/* DETAILS VIEW */}
         {currentView === 'DETAILS' && (
           <div className="p-12 space-y-10 animate-in slide-in-from-right duration-400">
-             <div className="flex justify-between items-end border-b-4 border-blue-600 pb-4">
+            <div className="flex justify-between items-end border-b-4 border-blue-600 pb-4">
               <h2 className="text-3xl font-black uppercase text-slate-900">Final Details</h2>
               <p className="text-[11px] font-black text-blue-600 uppercase tracking-tighter">Seal: {activeSeal?.seal_id}</p>
             </div>
-            
+
             <form onSubmit={handleFinalSave} className="space-y-6">
               <div className="grid grid-cols-2 gap-6">
                 <div className="space-y-2">
@@ -388,21 +470,17 @@ export default function Home() {
 
               <div className="space-y-2">
                 <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest">Photo Proof (Max 2MB)</label>
-                <div className="relative group">
-                  <input 
-                    type="file" 
-                    accept="image/*"
-                    onChange={(e) => setPhotoFile(e.target.files[0])}
-                    className="block w-full text-xs text-slate-500 file:mr-6 file:py-3 file:px-8 file:rounded-full file:border-0 file:text-[10px] file:font-black file:bg-blue-600 file:text-white file:uppercase hover:file:bg-blue-700 cursor-pointer" 
-                  />
-                  {photoFile && <p className="mt-2 text-[10px] font-bold text-green-600 uppercase">Ready: {photoFile.name}</p>}
-                </div>
+                <input
+                  type="file" accept="image/*"
+                  onChange={(e) => setPhotoFile(e.target.files[0])}
+                  className="block w-full text-xs text-slate-500 file:mr-6 file:py-3 file:px-8 file:rounded-full file:border-0 file:text-[10px] file:font-black file:bg-blue-600 file:text-white file:uppercase hover:file:bg-blue-700 cursor-pointer"
+                />
               </div>
 
               <div className="flex gap-4 pt-6">
                 <button type="button" onClick={() => setCurrentView('LIST')} className="flex-1 py-6 font-black uppercase text-xs text-slate-400">Back</button>
                 <button disabled={loading} type="submit" className="flex-1 bg-green-500 text-white py-6 rounded-3xl font-black uppercase text-xs tracking-widest shadow-xl shadow-green-100 disabled:opacity-50">
-                  {loading ? 'Compressing & Saving...' : 'Complete Application'}
+                  {loading ? 'Processing...' : 'Complete Application'}
                 </button>
               </div>
             </form>
@@ -410,121 +488,56 @@ export default function Home() {
         )}
       </div>
 
-      {/* --- AUDIT DETAIL MODAL (WITH CORRECTION THREAD) --- */}
+      {/* AUDIT MODAL */}
       {viewingSeal && (
-        <div className="fixed inset-0 bg-slate-900/60 z-50 flex items-center justify-center p-4 backdrop-blur-md animate-in fade-in duration-200">
-          <div className="bg-white rounded-[40px] shadow-2xl w-full max-w-lg overflow-hidden animate-in zoom-in slide-in-from-bottom-10 duration-300 flex flex-col max-h-[90vh]">
-            
-            <div className="bg-slate-900 p-8 flex justify-between items-center text-white shrink-0">
+        <div className="fixed inset-0 bg-slate-900/60 z-50 flex items-center justify-center p-4 backdrop-blur-md">
+          <div className="bg-white rounded-[40px] shadow-2xl w-full max-w-lg overflow-hidden flex flex-col max-h-[90vh]">
+            <div className="bg-slate-900 p-8 flex justify-between items-center text-white">
               <h3 className="text-sm font-black uppercase tracking-[0.2em]">Seal Audit Details</h3>
-              <button onClick={() => setViewingSeal(null)} className="bg-slate-800 hover:bg-red-500 w-10 h-10 rounded-full flex items-center justify-center transition-colors text-2xl leading-none">&times;</button>
+              <button onClick={() => setViewingSeal(null)} className="text-2xl">&times;</button>
             </div>
-
             <div className="p-10 space-y-8 overflow-y-auto custom-scrollbar">
               <div className="border-b-2 border-slate-50 pb-6">
-                <p className="text-[10px] font-black text-blue-600 uppercase tracking-widest mb-2">Seal Number</p>
-                <p className="text-4xl font-mono font-black text-slate-900 tracking-tighter">{viewingSeal.seal_id}</p>
+                <p className="text-4xl font-mono font-black text-slate-900">{viewingSeal.seal_id}</p>
               </div>
 
-              {/* READ-ONLY INFO GRID */}
               <div className="grid grid-cols-2 gap-8">
-                <div className="space-y-1">
-                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Issued By</p>
-                  <p className="text-sm font-bold text-slate-800 uppercase">{viewingSeal.issuer_name || '—'}</p>
-                  <p className="text-[10px] font-bold text-slate-400 uppercase">{viewingSeal.issuer_title}</p>
+                <div>
+                  <p className="text-[10px] font-black text-slate-400 uppercase">Department</p>
+                  <p className="text-sm font-bold text-slate-800">{viewingSeal.department}</p>
                 </div>
-                <div className="space-y-1">
-                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Department</p>
-                  <p className="text-sm font-bold text-slate-800 uppercase">{viewingSeal.department}</p>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-8 py-6 border-t border-b border-slate-50">
-                <div className="space-y-1">
-                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Container #</p>
-                  <p className="text-sm font-bold text-slate-800">{viewingSeal.container_num || 'N/A'}</p>
-                </div>
-                <div className="space-y-1">
-                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Dock Door #</p>
-                  <p className="text-sm font-bold text-slate-800">{viewingSeal.dock_door || 'N/A'}</p>
+                <div>
+                  <p className="text-[10px] font-black text-slate-400 uppercase">Applied By</p>
+                  <p className="text-sm font-bold text-slate-800">{viewingSeal.applied_by_name || 'Pending'}</p>
                 </div>
               </div>
 
-              <div className="flex items-center justify-between p-6 bg-slate-50 rounded-[30px] border border-slate-100">
-                <div className="space-y-1">
-                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Applied By</p>
-                  <p className="text-sm font-bold text-slate-800 uppercase">{viewingSeal.applied_by_name || 'Pending'}</p>
-                  <p className="text-[10px] font-bold text-slate-400 uppercase">{viewingSeal.applied_by_title}</p>
-                </div>
-                
-                <div className="flex flex-col items-end">
-                  {viewingSeal.photo_url ? (
-                    <a href={viewingSeal.photo_url} target="_blank" rel="noreferrer" className="group relative">
-                      <img 
-                        src={viewingSeal.photo_url} 
-                        alt="Seal" 
-                        className="w-20 h-20 object-cover rounded-2xl shadow-lg border-4 border-white group-hover:scale-105 transition" 
-                      />
-                      <span className="absolute -bottom-2 -right-2 bg-blue-600 text-[8px] font-black text-white px-2 py-1 rounded-md uppercase">Proof</span>
-                    </a>
-                  ) : (
-                    <div className="w-20 h-20 bg-slate-200 rounded-2xl flex items-center justify-center">
-                      <p className="text-[8px] font-black text-slate-400 uppercase">No Photo</p>
-                    </div>
-                  )}
-                </div>
-              </div>
+              {viewingSeal.photo_url && (
+                <img src={viewingSeal.photo_url} className="w-full h-48 object-cover rounded-3xl border-4 border-slate-50" />
+              )}
 
-              <div className="space-y-1">
-                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Original Auditor Comments</p>
-                <div className="p-6 bg-slate-900 text-slate-300 rounded-[30px] text-xs font-medium italic leading-relaxed">
-                  "{viewingSeal.comments || "No notes provided."}"
-                </div>
-              </div>
-
-              {/* CORRECTION THREAD SECTION */}
               <div className="pt-8 border-t border-slate-100 space-y-6">
-                <p className="text-[10px] font-black text-orange-500 uppercase tracking-widest">Correction Log / Updates</p>
-                
+                <p className="text-[10px] font-black text-orange-500 uppercase tracking-widest">Updates</p>
                 <div className="space-y-4">
-                  {correctionNotes.length > 0 ? (
-                    correctionNotes.map((note) => (
-                      <div key={note.id} className="p-4 bg-orange-50 rounded-2xl border border-orange-100">
-                        <p className="text-xs font-bold text-slate-800">{note.note_text}</p>
-                        <p className="text-[9px] font-black text-orange-400 uppercase mt-2">
-                          {new Date(note.created_at).toLocaleString()}
-                        </p>
-                      </div>
-                    ))
-                  ) : (
-                    <p className="text-[10px] font-bold text-slate-300 uppercase italic text-center">No corrections recorded.</p>
-                  )}
+                  {correctionNotes.map((note) => (
+                    <div key={note.id} className="p-4 bg-orange-50 rounded-2xl">
+                      <p className="text-xs font-bold text-slate-800">{note.note_text}</p>
+                    </div>
+                  ))}
                 </div>
-
                 <form onSubmit={handleAddCorrection} className="space-y-3">
-                  <textarea 
-                    value={newNote}
-                    onChange={(e) => setNewNote(e.target.value)}
-                    placeholder="Add a correction note (e.g., Driver is Juan)..."
-                    className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl text-xs font-medium focus:ring-2 focus:ring-orange-200 outline-none"
-                    rows="2"
+                  <textarea
+                    value={newNote} onChange={(e) => setNewNote(e.target.value)}
+                    placeholder="Add a correction..."
+                    className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl text-xs"
                   />
-                  <button type="submit" className="w-full bg-slate-900 text-white py-3 rounded-xl text-[10px] font-black uppercase tracking-widest">
-                    Post Correction
-                  </button>
+                  <button type="submit" className="w-full bg-slate-900 text-white py-3 rounded-xl text-[10px] font-black uppercase">Post Update</button>
                 </form>
-              </div>
-
-              <div className="pt-4 text-center">
-                <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">
-                  Originally Applied: {viewingSeal.applied_at ? new Date(viewingSeal.applied_at).toLocaleString() : 'PENDING'}
-                </p>
               </div>
             </div>
           </div>
         </div>
       )}
-
     </main>
   );
 }
