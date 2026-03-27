@@ -114,6 +114,10 @@ export default function Home() {
     return matchesSearch && matchesDept;
   });
 
+  // --- SPLIT LOGIC ---
+  const inStockSeals = filteredSeals.filter(seal => seal.status !== 'Applied');
+  const usedSeals = filteredSeals.filter(seal => seal.status === 'Applied');
+
   // --- ACTIONS ---
   const handleIntake = async (e) => {
     e.preventDefault();
@@ -294,7 +298,8 @@ export default function Home() {
 
   return (
     <main className="min-h-screen bg-slate-100 p-4 font-sans text-slate-900">
-      <div className="max-w-2xl mx-auto shadow-2xl rounded-[40px] overflow-hidden bg-white relative border border-white">
+      {/* Container is now wide: max-w-[95%] and lg:max-w-6xl */}
+      <div className="max-w-[95%] lg:max-w-6xl mx-auto shadow-2xl rounded-[40px] overflow-hidden bg-white relative border border-white">
 
         <div className="bg-slate-900 p-10 text-center text-white relative">
           <button onClick={handleLogout} className="absolute top-6 right-6 text-[10px] font-black uppercase bg-slate-800 px-4 py-2 rounded-full hover:bg-red-500 transition">Logout</button>
@@ -369,45 +374,88 @@ export default function Home() {
                 )}
               </div>
 
+              {/* List space-y reduced for overall tightness */}
               <div className="space-y-4 max-h-[600px] overflow-y-auto pr-2 custom-scrollbar">
-                {filteredSeals.length > 0 ? (
-                  filteredSeals.map((seal) => (
-                    <div key={seal.id} className="group flex justify-between items-center p-6 bg-white rounded-[32px] border border-slate-100 shadow-sm hover:shadow-md transition">
-                      <div>
-                        <button
-                          onClick={() => setViewingSeal(seal)}
-                          className="font-mono font-black text-xl text-blue-600 tracking-tighter hover:text-blue-800 hover:underline text-left block"
-                        >
-                          {seal.seal_id}
-                        </button>
-                        <p className="text-[10px] font-black text-slate-300 uppercase tracking-widest mt-1">
-                          {seal.department} • <span className={seal.status === 'Applied' ? 'text-orange-500' : 'text-green-500'}>{seal.status}</span>
-                        </p>
-                      </div>
-                      <div className="flex items-center gap-4">
-                        {seal.status !== 'Applied' ? (
-                          <button onClick={() => startApplyProcess(seal)} className="bg-orange-50 text-orange-600 px-6 py-3 rounded-2xl text-[10px] font-black uppercase hover:bg-orange-500 hover:text-white transition shadow-sm">
-                            Apply
-                          </button>
-                        ) : (
-                          <span className="bg-slate-50 text-slate-400 px-4 py-2 rounded-xl text-[9px] font-black uppercase">Complete</span>
-                        )}
-                        {userRole === 'admin' && (
-                          <button onClick={() => deleteSeal(seal.id)} className="text-slate-200 hover:text-red-500 transition-colors p-2 text-xl">🗑️</button>
-                        )}
-                      </div>
-                    </div>
-                  ))
-                ) : (
+                
+                {filteredSeals.length === 0 ? (
                   <div className="text-center py-20 bg-slate-50 rounded-[40px] border-2 border-dashed border-slate-200">
                     <p className="text-xs font-black uppercase text-slate-400 tracking-[0.2em]">No seals found in {viewFilter}</p>
                   </div>
+                ) : (
+                  <>
+                    {/* IN-STOCK SECTION */}
+                    {inStockSeals.length > 0 && (
+                      <div className="space-y-3">
+                        <h3 className="text-[11px] font-black uppercase tracking-widest text-slate-400 ml-2">
+                          In-Stock ({inStockSeals.length})
+                        </h3>
+                        {inStockSeals.map((seal) => (
+                          <div key={seal.id} className="group relative flex justify-between items-center py-3 pr-6 pl-10 bg-white rounded-[32px] border border-slate-100 shadow-sm hover:shadow-md transition overflow-hidden">
+                            <div className="absolute left-0 top-0 bottom-0 w-3 bg-green-500"></div>
+                            
+                            <div>
+                              <button
+                                onClick={() => setViewingSeal(seal)}
+                                className="font-mono font-black text-xl text-blue-600 tracking-tighter hover:text-blue-800 hover:underline text-left block"
+                              >
+                                {seal.seal_id}
+                              </button>
+                              <p className="text-[10px] font-black text-slate-300 uppercase tracking-widest mt-1">
+                                {seal.department} • <span className="text-green-500">{seal.status}</span>
+                              </p>
+                            </div>
+                            <div className="flex items-center gap-4">
+                              <button onClick={() => startApplyProcess(seal)} className="bg-orange-50 text-orange-600 px-6 py-2 rounded-2xl text-[10px] font-black uppercase hover:bg-orange-500 hover:text-white transition shadow-sm">
+                                Apply
+                              </button>
+                              {userRole === 'admin' && (
+                                <button onClick={() => deleteSeal(seal.id)} className="text-slate-200 hover:text-red-500 transition-colors p-2 text-xl">🗑️</button>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* USED INVENTORY SECTION */}
+                    {usedSeals.length > 0 && (
+                      <div className="space-y-3 pt-4">
+                        <h3 className="text-[11px] font-black uppercase tracking-widest text-slate-400 ml-2">
+                          Used Inventory ({usedSeals.length})
+                        </h3>
+                        {usedSeals.map((seal) => (
+                          <div key={seal.id} className="group relative flex justify-between items-center py-3 pr-6 pl-10 bg-white rounded-[32px] border border-slate-100 shadow-sm hover:shadow-md transition overflow-hidden opacity-90">
+                            <div className="absolute left-0 top-0 bottom-0 w-3 bg-red-500"></div>
+
+                            <div>
+                              <button
+                                onClick={() => setViewingSeal(seal)}
+                                className="font-mono font-black text-xl text-blue-600 tracking-tighter hover:text-blue-800 hover:underline text-left block"
+                              >
+                                {seal.seal_id}
+                              </button>
+                              <p className="text-[10px] font-black text-slate-300 uppercase tracking-widest mt-1">
+                                {seal.department} • <span className="text-orange-500">{seal.status}</span>
+                              </p>
+                            </div>
+                            <div className="flex items-center gap-4">
+                              <span className="bg-slate-50 text-slate-400 px-4 py-2 rounded-xl text-[9px] font-black uppercase">Complete</span>
+                              {userRole === 'admin' && (
+                                <button onClick={() => deleteSeal(seal.id)} className="text-slate-200 hover:text-red-500 transition-colors p-2 text-xl">🗑️</button>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </>
                 )}
               </div>
             </div>
           </div>
         )}
 
+        {/* ... ALL OTHER VIEWS (ISSUER, DETAILS, MODAL) REMAIN FULLY FUNCTIONAL ... */}
         {currentView === 'ISSUER' && (
           <div className="p-12 space-y-10">
             <h2 className="text-3xl font-black uppercase text-slate-900">Seal Issued By</h2>
@@ -479,11 +527,10 @@ export default function Home() {
         )}
       </div>
 
-      {/* --- UPDATED AUDIT MODAL --- */}
+      {/* --- MODAL REMAINS FULLY FUNCTIONAL --- */}
       {viewingSeal && (
         <div className="fixed inset-0 bg-slate-900/70 z-50 flex items-center justify-center p-4 backdrop-blur-md">
           <div className="bg-white rounded-[40px] shadow-2xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[95vh] border-4 border-white/20">
-            {/* Header */}
             <div className="bg-[#0f172a] p-8 flex justify-between items-center text-white sticky top-0 z-10">
               <div>
                 <p className="text-orange-400 text-[10px] font-black uppercase tracking-[0.2em] mb-1">Audit Review</p>
@@ -492,10 +539,7 @@ export default function Home() {
               <button onClick={() => setViewingSeal(null)} className="bg-white/10 hover:bg-white/20 p-3 rounded-full transition-all text-2xl font-light">&times;</button>
             </div>
 
-            {/* Content Body */}
             <div className="p-10 space-y-10 overflow-y-auto custom-scrollbar">
-              
-              {/* Main ID & Stats */}
               <div className="flex justify-between items-start border-b-2 border-slate-50 pb-8">
                 <h1 className="text-5xl font-mono font-black text-slate-900 tracking-tighter">{viewingSeal.seal_id}</h1>
                 <span className={`px-4 py-2 rounded-full text-[10px] font-black uppercase tracking-widest ${viewingSeal.status === 'Applied' ? 'bg-orange-100 text-orange-600' : 'bg-green-100 text-green-600'}`}>
@@ -503,7 +547,6 @@ export default function Home() {
                 </span>
               </div>
 
-              {/* Data Grid: Container, Door, Company, Dept */}
               <div className="grid grid-cols-2 gap-y-10 gap-x-12">
                 <div>
                   <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest mb-2">Container #</p>
@@ -525,7 +568,6 @@ export default function Home() {
 
               <hr className="border-slate-100" />
 
-              {/* Personnel Section */}
               <div className="grid grid-cols-2 gap-8 bg-slate-50/50 p-6 rounded-[32px] border border-slate-100">
                 <div>
                   <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest mb-1">Applied By</p>
@@ -537,7 +579,6 @@ export default function Home() {
                 </div>
               </div>
 
-              {/* Proof Photo */}
               {viewingSeal.photo_url && (
                 <div className="space-y-4">
                   <p className="text-[11px] font-black text-orange-500 uppercase tracking-widest">Inspection Evidence</p>
@@ -547,7 +588,6 @@ export default function Home() {
                 </div>
               )}
 
-              {/* Comments Section */}
               <div className="space-y-4">
                 <p className="text-[11px] font-black text-orange-500 uppercase tracking-widest">Original Comments</p>
                 <div className="bg-orange-50/50 p-6 rounded-[32px] border border-orange-100">
@@ -557,7 +597,6 @@ export default function Home() {
                 </div>
               </div>
 
-              {/* Correction Thread (Existing Logic) */}
               <div className="pt-10 border-t border-slate-100 space-y-6">
                 <p className="text-[11px] font-black text-blue-600 uppercase tracking-widest">Admin Updates & Corrections</p>
                 <div className="space-y-4">
