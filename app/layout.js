@@ -1,3 +1,5 @@
+import { Toaster } from 'sonner'; // 1. Professional notification provider
+import 'bootstrap-icons/font/bootstrap-icons.css';
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 
@@ -21,6 +23,9 @@ export default function RootLayout({ children }) {
     <html lang="en">
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
         {children}
+        
+        {/* 2. Global Toast Anchor - Positioned for high visibility */}
+        <Toaster position="top-center" richColors closeButton />
       </body>
     </html>
   );
