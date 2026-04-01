@@ -43,6 +43,9 @@ export default function Home() {
   const [correctionNotes, setCorrectionNotes] = useState([]);
   const [newNote, setNewNote] = useState('');
 
+  // --- FAIL-SAFE STATE ---
+  const [showRetry, setShowRetry] = useState(false);
+
   // --- 1. DATA FETCHING (Correction Notes) ---
   useEffect(() => {
     if (viewingSeal) fetchNotes(viewingSeal.id);
@@ -77,7 +80,17 @@ export default function Home() {
     toast.info('Logged out safely.');
   };
 
-  // --- 3. WORKFLOW ACTIONS ---
+  // --- 3. FAIL-SAFE TIMER ---
+  useEffect(() => {
+    if (isAuthenticating) {
+      const timer = setTimeout(() => setShowRetry(true), 5000); // 5 second timeout
+      return () => clearTimeout(timer);
+    } else {
+      setShowRetry(false);
+    }
+  }, [isAuthenticating]);
+
+  // --- 4. WORKFLOW ACTIONS ---
   const handleIntake = async (e) => {
     e.preventDefault();
     if (userRole !== 'admin') {
@@ -177,8 +190,31 @@ export default function Home() {
     toast.info("Generating CSV export...");
   };
 
-  // --- 4. RENDER LOGIC ---
-  if (isAuthenticating) return <div className="min-h-screen flex items-center justify-center font-black uppercase text-slate-400 tracking-widest">Securing Connection...</div>;
+  // --- 5. RENDER LOGIC ---
+  if (isAuthenticating) {
+    return (
+      <main className="min-h-screen flex flex-col items-center justify-center bg-slate-50 p-4">
+        <div className="flex flex-col items-center gap-6 animate-in fade-in duration-700">
+          {/* Spinner */}
+          <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+          
+          <div className="text-center">
+            <h2 className="font-black uppercase text-slate-900 tracking-widest text-sm">Securing Connection</h2>
+            <p className="text-[10px] font-bold text-slate-400 uppercase mt-2">Verifying credentials and permissions...</p>
+          </div>
+
+          {showRetry && (
+            <button 
+              onClick={() => window.location.reload()} 
+              className="mt-4 bg-white border-2 border-slate-200 px-8 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-50 hover:border-slate-300 transition-all shadow-sm animate-in slide-in-from-bottom-2 duration-500"
+            >
+              Connection Slow? Click to Retry
+            </button>
+          )}
+        </div>
+      </main>
+    );
+  }
 
   if (!user) {
     return (
@@ -253,7 +289,7 @@ export default function Home() {
                             key={seal.id} seal={seal} 
                             onSelect={setViewingSeal} 
                             onApply={() => { setActiveSeal(seal); setCurrentView('ISSUER'); }} 
-                            onDelete={deleteSeal} // Calls hook (handles toast)
+                            onDelete={deleteSeal} 
                             isAdmin={userRole === 'admin'} 
                           />
                         ))}
@@ -267,7 +303,7 @@ export default function Home() {
                           <SealCard 
                             key={seal.id} seal={seal} 
                             onSelect={setViewingSeal} 
-                            onDelete={deleteSeal} // Calls hook (handles toast)
+                            onDelete={deleteSeal} 
                             isAdmin={userRole === 'admin'} 
                           />
                         ))}
@@ -280,7 +316,6 @@ export default function Home() {
           </div>
         )}
 
-        {/* --- WORKFLOW VIEWS --- */}
         {currentView === 'ISSUER' && (
           <div className="p-12 space-y-10">
             <h2 className="text-3xl font-black uppercase text-slate-900">Seal Issued By</h2>
