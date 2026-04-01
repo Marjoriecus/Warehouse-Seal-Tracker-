@@ -40,7 +40,4 @@ This project follows a **Separation of Concerns** design pattern to ensure scala
 4. Run `npm run dev` to start the development server.
 
 ---
-D## 📬 Connect
-- **Developer:** Marjorie Usey  
-- **Portfolio:** https://github.com/Marjoriecus
-- **LinkedIn:** https://www.linkedin.com/in/marjorie-usey-249332318/
+*Developed by Marjorie Usey as a professional demonstration of Full-Stack engineering and Warehouse Operations Logic.*
