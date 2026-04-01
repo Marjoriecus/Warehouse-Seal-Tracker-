@@ -42,5 +42,5 @@ This project follows a **Separation of Concerns** design pattern to ensure scala
 ---
 ## 📬 Connect
 - **Developer:** Marjorie Usey  
-- **Portfolio:** (https://github.com/Marjoriecus)
-- **LinkedIn:** (https://www.linkedin.com/in/marjorie-usey-249332318/)
+- **Portfolio:** https://github.com/Marjoriecus
+- **LinkedIn:** https://www.linkedin.com/in/marjorie-usey-249332318/
