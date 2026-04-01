@@ -8,14 +8,29 @@ export function useAuth() {
   const [isAuthenticating, setIsAuthenticating] = useState(true);
 
   useEffect(() => {
-    const getSession = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session) {
-        setUser(session.user);
-        await fetchPermissions(session.user.id);
+    // FAIL-SAFE: If auth hangs for more than 8 seconds, stop the loading screen
+    const globalTimeout = setTimeout(() => {
+      if (isAuthenticating) {
+        console.warn("Auth check timed out. Defaulting to Login.");
+        setIsAuthenticating(false);
       }
-      setIsAuthenticating(false);
+    }, 8000);
+
+    const getSession = async () => {
+      try {
+        const { data: { session }, error } = await supabase.auth.getSession();
+        if (session && !error) {
+          setUser(session.user);
+          await fetchPermissions(session.user.id);
+        }
+      } catch (err) {
+        console.error("Session recovery failed:", err);
+      } finally {
+        setIsAuthenticating(false);
+        clearTimeout(globalTimeout);
+      }
     };
+    
     getSession();
 
     const { data: authListener } = supabase.auth.onAuthStateChange(async (event, session) => {
@@ -30,7 +45,10 @@ export function useAuth() {
       setIsAuthenticating(false);
     });
 
-    return () => authListener.subscription.unsubscribe();
+    return () => {
+      authListener.subscription.unsubscribe();
+      clearTimeout(globalTimeout);
+    };
   }, []);
 
   const fetchPermissions = async (userId) => {
@@ -41,22 +59,15 @@ export function useAuth() {
         .eq('id', userId)
         .single();
 
-      // --- SELF-CLEANING FAIL-SAFE ---
-      // If we have a user but NO profile data, the session is corrupted/stale.
       if (error || !data) {
-        console.warn("Stale session detected. Force clearing site data...");
         await supabase.auth.signOut();
-        // We don't reload here to avoid infinite loops; 
-        // resetting the state will kick the user back to the login screen.
         setUser(null);
-        setUserRole(null);
-        setUserDept(null);
       } else {
         setUserRole(data.role);
         setUserDept(data.department);
       }
     } catch (err) {
-      console.error("Auth Hook Error:", err);
+      console.error("Permission fetch error:", err);
     }
   };
 

@@ -65,14 +65,18 @@ export default function Home() {
   const handleLogin = async (e) => {
     e.preventDefault();
     setIsProcessing(true);
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
-    
-    if (error) {
-      toast.error(error.message);
-    } else {
-      toast.success('Access Granted. Welcome back!');
+    try {
+      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      if (error) {
+        toast.error(error.message);
+      } else {
+        toast.success('Access Granted. Welcome back!');
+      }
+    } catch (err) {
+      toast.error("Connection failed. Please check your internet.");
+    } finally {
+      setIsProcessing(false);
     }
-    setIsProcessing(false);
   };
 
   const handleLogout = async () => {
@@ -83,7 +87,7 @@ export default function Home() {
   // --- 3. FAIL-SAFE TIMER ---
   useEffect(() => {
     if (isAuthenticating) {
-      const timer = setTimeout(() => setShowRetry(true), 5000); // 5 second timeout
+      const timer = setTimeout(() => setShowRetry(true), 5000); 
       return () => clearTimeout(timer);
     } else {
       setShowRetry(false);
@@ -93,24 +97,31 @@ export default function Home() {
   // --- 4. WORKFLOW ACTIONS ---
   const handleIntake = async (e) => {
     e.preventDefault();
-    if (userRole !== 'admin') {
-      toast.error("Unauthorized Action");
-      return;
-    }
+    if (userRole !== 'admin') return toast.error("Unauthorized Action");
     if (!sealId) return;
-    setIsProcessing(true);
-    
-    const { error } = await supabase
-      .from('seals')
-      .insert([{ seal_id: sealId.toUpperCase(), department: dept, status: 'In Stock' }]);
-    
-    setIsProcessing(false);
-    if (!error) {
+
+    setIsProcessing(true); // START: UI turns to "Adding..."
+
+    try {
+      // Logic Check: Ensure session is still alive
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) throw new Error("Session expired. Please reload page.");
+
+      const { error } = await supabase
+        .from('seals')
+        .insert([{ seal_id: sealId.toUpperCase(), department: dept, status: 'In Stock' }]);
+      
+      if (error) throw error;
+
       toast.success(`Seal ${sealId.toUpperCase()} added to inventory.`);
       setSealId('');
       fetchSeals();
-    } else {
+    } catch (error) {
+      console.error("Intake Error:", error);
       toast.error("Database error: " + error.message);
+    } finally {
+      // FINALLY: This runs NO MATTER WHAT. It un-freezes the button.
+      setIsProcessing(false); 
     }
   };
 
@@ -128,37 +139,34 @@ export default function Home() {
     const details = Object.fromEntries(formData);
     let finalPhotoUrl = null;
 
-    if (photoFile) {
-      try {
+    try {
+      if (photoFile) {
         const compressedBlob = await compressImage(photoFile);
         const fileName = `${activeSeal.seal_id}-${Date.now()}.jpg`;
         const { error: uploadError } = await supabase.storage.from('seal-photos').upload(fileName, compressedBlob);
         if (uploadError) throw uploadError;
         const { data: publicUrlData } = supabase.storage.from('seal-photos').getPublicUrl(fileName);
         finalPhotoUrl = publicUrlData.publicUrl;
-      } catch (err) {
-        toast.error("Image processing failed: " + err.message);
-        setIsProcessing(false);
-        return;
       }
-    }
 
-    const { error } = await supabase.from('seals').update({
-      status: 'Applied', issuer_name: issuerInfo.name, issuer_title: issuerInfo.title,
-      container_num: details.containerNum, dock_door: details.dockDoor, company_name: details.companyName,
-      applied_by_name: details.appliedByName, applied_by_title: details.appliedByTitle,
-      comments: details.comments, photo_url: finalPhotoUrl, applied_at: new Date()
-    }).eq('id', activeSeal.id);
+      const { error } = await supabase.from('seals').update({
+        status: 'Applied', issuer_name: issuerInfo.name, issuer_title: issuerInfo.title,
+        container_num: details.containerNum, dock_door: details.dockDoor, company_name: details.companyName,
+        applied_by_name: details.appliedByName, applied_by_title: details.appliedByTitle,
+        comments: details.comments, photo_url: finalPhotoUrl, applied_at: new Date()
+      }).eq('id', activeSeal.id);
 
-    setIsProcessing(false);
-    if (!error) {
+      if (error) throw error;
+
       toast.success("Record saved and archived.");
       setCurrentView('LIST');
       setActiveSeal(null);
       setPhotoFile(null);
       fetchSeals();
-    } else {
-      toast.error("Save failed: " + error.message);
+    } catch (err) {
+      toast.error("Save failed: " + err.message);
+    } finally {
+      setIsProcessing(false);
     }
   };
 
@@ -195,14 +203,11 @@ export default function Home() {
     return (
       <main className="min-h-screen flex flex-col items-center justify-center bg-slate-50 p-4">
         <div className="flex flex-col items-center gap-6 animate-in fade-in duration-700">
-          {/* Spinner */}
           <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
-          
           <div className="text-center">
             <h2 className="font-black uppercase text-slate-900 tracking-widest text-sm">Securing Connection</h2>
             <p className="text-[10px] font-bold text-slate-400 uppercase mt-2">Verifying credentials and permissions...</p>
           </div>
-
           {showRetry && (
             <button 
               onClick={() => window.location.reload()} 
@@ -237,7 +242,6 @@ export default function Home() {
   return (
     <main className="min-h-screen bg-slate-100 p-4 font-sans text-slate-900">
       <div className="max-w-[95%] lg:max-w-6xl mx-auto shadow-2xl rounded-[40px] overflow-hidden bg-white relative border border-white">
-
         <div className="bg-slate-900 p-10 text-center text-white relative">
           <button onClick={handleLogout} className="absolute top-6 right-6 text-[10px] font-black uppercase bg-slate-800 px-4 py-2 rounded-full hover:bg-red-500 transition">Logout</button>
           <h1 className="text-4xl font-black uppercase tracking-tighter">Seal Tracker</h1>
@@ -316,6 +320,7 @@ export default function Home() {
           </div>
         )}
 
+        {/* Workflow Logic Preserved... */}
         {currentView === 'ISSUER' && (
           <div className="p-12 space-y-10">
             <h2 className="text-3xl font-black uppercase text-slate-900">Seal Issued By</h2>
