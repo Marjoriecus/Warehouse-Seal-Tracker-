@@ -27,20 +27,36 @@ export function useAuth() {
         setUserRole(null);
         setUserDept(null);
       }
+      setIsAuthenticating(false);
     });
 
     return () => authListener.subscription.unsubscribe();
   }, []);
 
   const fetchPermissions = async (userId) => {
-    const { data, error } = await supabase
-      .from('profiles')
-      .select('role, department')
-      .eq('id', userId)
-      .single();
-    if (!error && data) {
-      setUserRole(data.role);
-      setUserDept(data.department);
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('role, department')
+        .eq('id', userId)
+        .single();
+
+      // --- SELF-CLEANING FAIL-SAFE ---
+      // If we have a user but NO profile data, the session is corrupted/stale.
+      if (error || !data) {
+        console.warn("Stale session detected. Force clearing site data...");
+        await supabase.auth.signOut();
+        // We don't reload here to avoid infinite loops; 
+        // resetting the state will kick the user back to the login screen.
+        setUser(null);
+        setUserRole(null);
+        setUserDept(null);
+      } else {
+        setUserRole(data.role);
+        setUserDept(data.department);
+      }
+    } catch (err) {
+      console.error("Auth Hook Error:", err);
     }
   };
 
