@@ -84,7 +84,7 @@ export default function Home() {
     toast.info('Logged out safely.');
   };
 
-  // --- 3. FAIL-SAFE TIMER ---
+  // --- 3. FAIL-SAFE TIMER & RESET ---
   useEffect(() => {
     if (isAuthenticating) {
       const timer = setTimeout(() => setShowRetry(true), 5000); 
@@ -94,16 +94,46 @@ export default function Home() {
     }
   }, [isAuthenticating]);
 
+  // NUCLEAR RESET FUNCTION: Wipes browser memory to fix "Ghost" connections
+  const handleDeepReset = async () => {
+    toast.loading("Performing Deep Reset...");
+    try {
+      // 1. Force logout from the server
+      await supabase.auth.signOut();
+      
+      // 2. Clear all local browser storage
+      window.localStorage.clear();
+      window.sessionStorage.clear();
+      
+      // 3. Clear all Cookies (The most common fix for the white screen)
+      document.cookie.split(";").forEach((c) => {
+        document.cookie = c
+          .replace(/^ +/, "")
+          .replace(/=.*/, "=;expires=" + new Date().toUTCString() + ";path=/");
+      });
+
+      toast.success("Memory Cleared. Reloading...");
+      
+      // 4. Force a fresh redirect to the home page
+      setTimeout(() => {
+        window.location.href = window.location.origin;
+      }, 1000);
+      
+    } catch (err) {
+      // Emergency fallback
+      window.location.reload();
+    }
+  };
+
   // --- 4. WORKFLOW ACTIONS ---
   const handleIntake = async (e) => {
     e.preventDefault();
     if (userRole !== 'admin') return toast.error("Unauthorized Action");
     if (!sealId) return;
 
-    setIsProcessing(true); // START: UI turns to "Adding..."
+    setIsProcessing(true); 
 
     try {
-      // Logic Check: Ensure session is still alive
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) throw new Error("Session expired. Please reload page.");
 
@@ -120,7 +150,6 @@ export default function Home() {
       console.error("Intake Error:", error);
       toast.error("Database error: " + error.message);
     } finally {
-      // FINALLY: This runs NO MATTER WHAT. It un-freezes the button.
       setIsProcessing(false); 
     }
   };
@@ -203,18 +232,24 @@ export default function Home() {
     return (
       <main className="min-h-screen flex flex-col items-center justify-center bg-slate-50 p-4">
         <div className="flex flex-col items-center gap-6 animate-in fade-in duration-700">
+          {/* Spinner */}
           <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+          
           <div className="text-center">
             <h2 className="font-black uppercase text-slate-900 tracking-widest text-sm">Securing Connection</h2>
             <p className="text-[10px] font-bold text-slate-400 uppercase mt-2">Verifying credentials and permissions...</p>
           </div>
+
           {showRetry && (
-            <button 
-              onClick={() => window.location.reload()} 
-              className="mt-4 bg-white border-2 border-slate-200 px-8 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-50 hover:border-slate-300 transition-all shadow-sm animate-in slide-in-from-bottom-2 duration-500"
-            >
-              Connection Slow? Click to Retry
-            </button>
+            <div className="flex flex-col items-center gap-3">
+              <button 
+                onClick={handleDeepReset} 
+                className="bg-white border-2 border-slate-200 px-8 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-red-50 hover:text-red-600 hover:border-red-200 transition-all shadow-sm animate-in slide-in-from-bottom-2 duration-500"
+              >
+                Connection Slow? Click to Deep Reset
+              </button>
+              <p className="text-[8px] font-bold text-slate-300 uppercase">Clears browser cache and forces fresh login</p>
+            </div>
           )}
         </div>
       </main>
@@ -250,6 +285,7 @@ export default function Home() {
           </p>
         </div>
 
+        {/* ... The rest of your LIST and DETAILS render views stay the same ... */}
         {currentView === 'LIST' && (
           <div className="p-8 space-y-10">
             {userRole === 'admin' ? (
@@ -320,7 +356,7 @@ export default function Home() {
           </div>
         )}
 
-        {/* Workflow Logic Preserved... */}
+        {/* Workflow Views remain unchanged */}
         {currentView === 'ISSUER' && (
           <div className="p-12 space-y-10">
             <h2 className="text-3xl font-black uppercase text-slate-900">Seal Issued By</h2>
@@ -347,12 +383,10 @@ export default function Home() {
                 <div className="space-y-2"><label className="text-[11px] font-black text-slate-400 uppercase tracking-widest">Dock Door #</label><input name="dockDoor" required className="w-full p-5 bg-slate-50 border border-slate-100 rounded-3xl font-bold" /></div>
               </div>
               <div className="space-y-2"><label className="text-[11px] font-black text-slate-400 uppercase tracking-widest">Container Company Name</label><input name="companyName" required className="w-full p-5 bg-slate-50 border border-slate-100 rounded-3xl font-bold" /></div>
-              <div className="p-8 bg-blue-50/50 rounded-[40px] space-y-6 border border-blue-100/50">
-                <p className="text-[11px] font-black text-blue-600 uppercase tracking-widest">Seal Applied By</p>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <input name="appliedByName" placeholder="Operator Name" required className="w-full p-5 bg-white border border-blue-100 rounded-2xl font-bold" />
-                    <input name="appliedByTitle" placeholder="Operator Title" required className="w-full p-5 bg-white border border-blue-100 rounded-2xl font-bold" />
-                </div>
+              <div className="p-8 bg-blue-50/50 rounded-[40px] font-black uppercase tracking-widest text-[11px] text-blue-600">Seal Applied By</div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <input name="appliedByName" placeholder="Operator Name" required className="w-full p-5 bg-white border border-blue-100 rounded-2xl font-bold" />
+                <input name="appliedByTitle" placeholder="Operator Title" required className="w-full p-5 bg-white border border-blue-100 rounded-2xl font-bold" />
               </div>
               <div className="space-y-2"><label className="text-[11px] font-black text-slate-400 uppercase tracking-widest">Comments / Audit Notes</label><textarea name="comments" rows="2" placeholder="Write any exceptions here..." className="w-full p-5 bg-slate-50 border border-slate-100 rounded-3xl font-medium text-sm"></textarea></div>
               <div className="space-y-2">
