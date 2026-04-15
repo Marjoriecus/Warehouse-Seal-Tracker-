@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabaseClient';
-import { toast } from 'sonner'; // 1. Add the import
+import { toast } from 'sonner'; 
 
 export function useSeals(user, userRole, userDept) {
   const [sealsList, setSealsList] = useState([]);
@@ -10,28 +10,40 @@ export function useSeals(user, userRole, userDept) {
 
   const fetchSeals = async () => {
     if (!user || !userRole) return;
-    let query = supabase.from('seals').select('*');
-    if (userRole !== 'admin' && userDept) {
-      query = query.eq('department', userDept);
+    
+    try {
+      let query = supabase.from('seals').select('*');
+      if (userRole !== 'admin' && userDept) {
+        query = query.eq('department', userDept);
+      }
+      const { data, error } = await query.order('created_at', { ascending: false });
+      
+      if (error) throw error;
+      setSealsList(data || []);
+    } catch (err) {
+      console.error("Fetch seals error:", err);
+      toast.error("Failed to sync inventory. Please check connection.");
     }
-    const { data, error } = await query.order('created_at', { ascending: false });
-    if (!error) setSealsList(data);
   };
 
   useEffect(() => {
     fetchSeals();
   }, [user, userRole, userDept]);
 
-  // 2. Add the toasts inside this function
   const deleteSeal = async (id) => {
     if (confirm("Delete this record permanently?")) {
-      const { error } = await supabase.from('seals').delete().eq('id', id);
+      setIsProcessing(true); // Lock the UI while deleting
       
-      if (!error) {
-        fetchSeals();
-        toast.success("Record permanently removed from inventory"); // Success feedback
-      } else {
-        toast.error("Delete failed: " + error.message); // Error feedback
+      try {
+        const { error } = await supabase.from('seals').delete().eq('id', id);
+        if (error) throw error;
+        
+        await fetchSeals(); // Wait for the fresh list to load
+        toast.success("Record permanently removed from inventory"); 
+      } catch (err) {
+        toast.error("Delete failed: " + err.message); 
+      } finally {
+        setIsProcessing(false); // Unlock the UI
       }
     }
   };

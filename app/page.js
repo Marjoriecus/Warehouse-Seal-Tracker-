@@ -87,7 +87,13 @@ export default function Home() {
   // --- 3. FAIL-SAFE TIMER & RESET ---
   useEffect(() => {
     if (isAuthenticating) {
-      const timer = setTimeout(() => setShowRetry(true), 5000); 
+      const timer = setTimeout(() => {
+        setShowRetry(true);
+        // FORCE the screen to go away if it hangs for 10 seconds
+        setTimeout(() => {
+            window.location.reload();
+        }, 5000);
+      }, 5000); 
       return () => clearTimeout(timer);
     } else {
       setShowRetry(false);
@@ -170,10 +176,24 @@ export default function Home() {
 
     try {
       if (photoFile) {
-        const compressedBlob = await compressImage(photoFile);
+        let fileToUpload = photoFile;
+
+        // Optional: Only compress if the file is larger than 2MB
+        if (photoFile.size > 2 * 1024 * 1024) {
+          try {
+            fileToUpload = await compressImage(photoFile);
+          } catch (compressionError) {
+            console.warn("Compression failed, uploading original...", compressionError);
+            // Fallback to original file if compression crashes
+            fileToUpload = photoFile; 
+          }
+        }
+
         const fileName = `${activeSeal.seal_id}-${Date.now()}.jpg`;
-        const { error: uploadError } = await supabase.storage.from('seal-photos').upload(fileName, compressedBlob);
+        const { error: uploadError } = await supabase.storage.from('seal-photos').upload(fileName, fileToUpload);
+        
         if (uploadError) throw uploadError;
+        
         const { data: publicUrlData } = supabase.storage.from('seal-photos').getPublicUrl(fileName);
         finalPhotoUrl = publicUrlData.publicUrl;
       }
@@ -285,7 +305,6 @@ export default function Home() {
           </p>
         </div>
 
-        {/* ... The rest of your LIST and DETAILS render views stay the same ... */}
         {currentView === 'LIST' && (
           <div className="p-8 space-y-10">
             {userRole === 'admin' ? (
@@ -356,7 +375,6 @@ export default function Home() {
           </div>
         )}
 
-        {/* Workflow Views remain unchanged */}
         {currentView === 'ISSUER' && (
           <div className="p-12 space-y-10">
             <h2 className="text-3xl font-black uppercase text-slate-900">Seal Issued By</h2>
