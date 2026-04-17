@@ -12,12 +12,12 @@ import AuditModal from './components/AuditModal';
 // --- LOGIC ENGINE IMPORTS ---
 import { useAuth } from './hooks/useAuth';
 import { useSeals } from './hooks/useSeals';
-import { compressImage } from './utils/imageUtils';
+
 
 export default function Home() {
   // --- AUTH STATE (Hook Driven) ---
   const { user, userRole, userDept, isAuthenticating } = useAuth();
-  
+
   // --- INVENTORY STATE (Hook Driven) ---
   const {
     inStockSeals, usedSeals, searchTerm, setSearchTerm, viewFilter, setViewFilter,
@@ -29,7 +29,7 @@ export default function Home() {
   const [password, setPassword] = useState('');
 
   // --- WORKFLOW STATE ---
-  const [sealId, setSealId] = useState(''); 
+  const [sealId, setSealId] = useState('');
   const [dept, setDept] = useState('Inbound Department');
   const [currentView, setCurrentView] = useState('LIST');
   const [activeSeal, setActiveSeal] = useState(null);
@@ -37,7 +37,7 @@ export default function Home() {
 
   // --- MODAL & UPLOAD STATE ---
   const [viewingSeal, setViewingSeal] = useState(null);
-  const [photoFile, setPhotoFile] = useState(null);
+
 
   // --- CORRECTION THREAD STATE ---
   const [correctionNotes, setCorrectionNotes] = useState([]);
@@ -91,9 +91,9 @@ export default function Home() {
         setShowRetry(true);
         // FORCE the screen to go away if it hangs for 10 seconds
         setTimeout(() => {
-            window.location.reload();
+          window.location.reload();
         }, 5000);
-      }, 5000); 
+      }, 5000);
       return () => clearTimeout(timer);
     } else {
       setShowRetry(false);
@@ -106,11 +106,11 @@ export default function Home() {
     try {
       // 1. Force logout from the server
       await supabase.auth.signOut();
-      
+
       // 2. Clear all local browser storage
       window.localStorage.clear();
       window.sessionStorage.clear();
-      
+
       // 3. Clear all Cookies (The most common fix for the white screen)
       document.cookie.split(";").forEach((c) => {
         document.cookie = c
@@ -119,12 +119,12 @@ export default function Home() {
       });
 
       toast.success("Memory Cleared. Reloading...");
-      
+
       // 4. Force a fresh redirect to the home page
       setTimeout(() => {
         window.location.href = window.location.origin;
       }, 1000);
-      
+
     } catch (err) {
       // Emergency fallback
       window.location.reload();
@@ -137,7 +137,7 @@ export default function Home() {
     if (userRole !== 'admin') return toast.error("Unauthorized Action");
     if (!sealId) return;
 
-    setIsProcessing(true); 
+    setIsProcessing(true);
 
     try {
       const { data: { session } } = await supabase.auth.getSession();
@@ -146,7 +146,7 @@ export default function Home() {
       const { error } = await supabase
         .from('seals')
         .insert([{ seal_id: sealId.toUpperCase(), department: dept, status: 'In Stock' }]);
-      
+
       if (error) throw error;
 
       toast.success(`Seal ${sealId.toUpperCase()} added to inventory.`);
@@ -156,7 +156,7 @@ export default function Home() {
       console.error("Intake Error:", error);
       toast.error("Database error: " + error.message);
     } finally {
-      setIsProcessing(false); 
+      setIsProcessing(false);
     }
   };
 
@@ -172,37 +172,19 @@ export default function Home() {
     setIsProcessing(true);
     const formData = new FormData(e.target);
     const details = Object.fromEntries(formData);
-    let finalPhotoUrl = null;
 
     try {
-      if (photoFile) {
-        let fileToUpload = photoFile;
-
-        // Optional: Only compress if the file is larger than 2MB
-        if (photoFile.size > 2 * 1024 * 1024) {
-          try {
-            fileToUpload = await compressImage(photoFile);
-          } catch (compressionError) {
-            console.warn("Compression failed, uploading original...", compressionError);
-            // Fallback to original file if compression crashes
-            fileToUpload = photoFile; 
-          }
-        }
-
-        const fileName = `${activeSeal.seal_id}-${Date.now()}.jpg`;
-        const { error: uploadError } = await supabase.storage.from('seal-photos').upload(fileName, fileToUpload);
-        
-        if (uploadError) throw uploadError;
-        
-        const { data: publicUrlData } = supabase.storage.from('seal-photos').getPublicUrl(fileName);
-        finalPhotoUrl = publicUrlData.publicUrl;
-      }
-
       const { error } = await supabase.from('seals').update({
-        status: 'Applied', issuer_name: issuerInfo.name, issuer_title: issuerInfo.title,
-        container_num: details.containerNum, dock_door: details.dockDoor, company_name: details.companyName,
-        applied_by_name: details.appliedByName, applied_by_title: details.appliedByTitle,
-        comments: details.comments, photo_url: finalPhotoUrl, applied_at: new Date()
+        status: 'Applied',
+        issuer_name: issuerInfo.name,
+        issuer_title: issuerInfo.title,
+        container_num: details.containerNum,
+        dock_door: details.dockDoor,
+        company_name: details.companyName,
+        applied_by_name: details.appliedByName,
+        applied_by_title: details.appliedByTitle,
+        comments: details.comments,
+        applied_at: new Date()
       }).eq('id', activeSeal.id);
 
       if (error) throw error;
@@ -210,7 +192,7 @@ export default function Home() {
       toast.success("Record saved and archived.");
       setCurrentView('LIST');
       setActiveSeal(null);
-      setPhotoFile(null);
+      // Photo reset removed
       fetchSeals();
     } catch (err) {
       toast.error("Save failed: " + err.message);
@@ -223,10 +205,10 @@ export default function Home() {
     e.preventDefault();
     if (!newNote.trim()) return;
     const { error } = await supabase.from('seal_notes').insert([{ seal_id: viewingSeal.id, note_text: newNote }]);
-    if (!error) { 
+    if (!error) {
       toast.success("Audit note added.");
-      setNewNote(''); 
-      fetchNotes(viewingSeal.id); 
+      setNewNote('');
+      fetchNotes(viewingSeal.id);
     }
   };
 
@@ -254,7 +236,7 @@ export default function Home() {
         <div className="flex flex-col items-center gap-6 animate-in fade-in duration-700">
           {/* Spinner */}
           <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
-          
+
           <div className="text-center">
             <h2 className="font-black uppercase text-slate-900 tracking-widest text-sm">Securing Connection</h2>
             <p className="text-[10px] font-bold text-slate-400 uppercase mt-2">Verifying credentials and permissions...</p>
@@ -262,8 +244,8 @@ export default function Home() {
 
           {showRetry && (
             <div className="flex flex-col items-center gap-3">
-              <button 
-                onClick={handleDeepReset} 
+              <button
+                onClick={handleDeepReset}
                 className="bg-white border-2 border-slate-200 px-8 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-red-50 hover:text-red-600 hover:border-red-200 transition-all shadow-sm animate-in slide-in-from-bottom-2 duration-500"
               >
                 Connection Slow? Click to Deep Reset
@@ -308,11 +290,11 @@ export default function Home() {
         {currentView === 'LIST' && (
           <div className="p-8 space-y-10">
             {userRole === 'admin' ? (
-              <AdminIntake 
+              <AdminIntake
                 sealId={sealId} setSealId={setSealId}
                 dept={dept} setDept={setDept}
-                isProcessing={isProcessing} 
-                handleIntake={handleIntake} 
+                isProcessing={isProcessing}
+                handleIntake={handleIntake}
               />
             ) : (
               <div className="bg-slate-900 p-8 rounded-[40px] text-white flex justify-between items-center">
@@ -344,12 +326,12 @@ export default function Home() {
                       <div className="space-y-3">
                         <h3 className="text-[11px] font-black uppercase tracking-widest text-slate-400 ml-2">In-Stock ({inStockSeals.length})</h3>
                         {inStockSeals.map((seal) => (
-                          <SealCard 
-                            key={seal.id} seal={seal} 
-                            onSelect={setViewingSeal} 
-                            onApply={() => { setActiveSeal(seal); setCurrentView('ISSUER'); }} 
-                            onDelete={deleteSeal} 
-                            isAdmin={userRole === 'admin'} 
+                          <SealCard
+                            key={seal.id} seal={seal}
+                            onSelect={setViewingSeal}
+                            onApply={() => { setActiveSeal(seal); setCurrentView('ISSUER'); }}
+                            onDelete={deleteSeal}
+                            isAdmin={userRole === 'admin'}
                           />
                         ))}
                       </div>
@@ -359,11 +341,11 @@ export default function Home() {
                       <div className="space-y-3 pt-4">
                         <h3 className="text-[11px] font-black uppercase tracking-widest text-slate-400 ml-2">Used Inventory ({usedSeals.length})</h3>
                         {usedSeals.map((seal) => (
-                          <SealCard 
-                            key={seal.id} seal={seal} 
-                            onSelect={setViewingSeal} 
-                            onDelete={deleteSeal} 
-                            isAdmin={userRole === 'admin'} 
+                          <SealCard
+                            key={seal.id} seal={seal}
+                            onSelect={setViewingSeal}
+                            onDelete={deleteSeal}
+                            isAdmin={userRole === 'admin'}
                           />
                         ))}
                       </div>
@@ -407,10 +389,6 @@ export default function Home() {
                 <input name="appliedByTitle" placeholder="Operator Title" required className="w-full p-5 bg-white border border-blue-100 rounded-2xl font-bold" />
               </div>
               <div className="space-y-2"><label className="text-[11px] font-black text-slate-400 uppercase tracking-widest">Comments / Audit Notes</label><textarea name="comments" rows="2" placeholder="Write any exceptions here..." className="w-full p-5 bg-slate-50 border border-slate-100 rounded-3xl font-medium text-sm"></textarea></div>
-              <div className="space-y-2">
-                <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest">Photo Proof</label>
-                <input type="file" accept="image/*" onChange={(e) => setPhotoFile(e.target.files[0])} className="block w-full text-xs text-slate-500 file:mr-6 file:py-3 file:px-8 file:rounded-full file:border-0 file:text-[10px] file:font-black file:bg-blue-600 file:text-white file:uppercase hover:file:bg-blue-700 cursor-pointer" />
-              </div>
               <div className="flex gap-4 pt-6">
                 <button type="button" onClick={() => setCurrentView('LIST')} className="flex-1 py-6 font-black uppercase text-xs text-slate-400">Back</button>
                 <button disabled={isProcessing} type="submit" className="flex-1 bg-green-500 text-white py-6 rounded-3xl font-black uppercase text-xs tracking-widest shadow-xl shadow-green-100">
@@ -422,7 +400,7 @@ export default function Home() {
         )}
       </div>
 
-      <AuditModal 
+      <AuditModal
         viewingSeal={viewingSeal} onClose={() => setViewingSeal(null)}
         correctionNotes={correctionNotes} newNote={newNote}
         setNewNote={setNewNote} handleAddCorrection={handleAddCorrection}
