@@ -13,7 +13,6 @@ import AuditModal from './components/AuditModal';
 import { useAuth } from './hooks/useAuth';
 import { useSeals } from './hooks/useSeals';
 
-
 export default function Home() {
   // --- AUTH STATE (Hook Driven) ---
   const { user, userRole, userDept, isAuthenticating } = useAuth();
@@ -34,10 +33,12 @@ export default function Home() {
   const [currentView, setCurrentView] = useState('LIST');
   const [activeSeal, setActiveSeal] = useState(null);
   const [issuerInfo, setIssuerInfo] = useState({ name: '', title: '' });
-
+  
+  // FIXED: Set the initial tab state to 'IN_STOCK'
+  const [activeTab, setActiveTab] = useState('IN_STOCK'); 
+  
   // --- MODAL & UPLOAD STATE ---
   const [viewingSeal, setViewingSeal] = useState(null);
-
 
   // --- CORRECTION THREAD STATE ---
   const [correctionNotes, setCorrectionNotes] = useState([]);
@@ -317,37 +318,61 @@ export default function Home() {
                 {userRole === 'admin' && <button onClick={exportToCSV} className="bg-white border-2 border-slate-100 text-slate-900 px-6 rounded-2xl text-[10px] font-black uppercase hover:bg-slate-50">CSV Export</button>}
               </div>
 
+              {/* --- NEW TABBED VIEW UI --- */}
+              <div className="flex bg-slate-200 p-1 rounded-2xl w-full max-w-sm mb-6">
+                <button 
+                  onClick={() => setActiveTab('IN_STOCK')} 
+                  className={`flex-1 py-3 text-[11px] font-black uppercase tracking-widest rounded-xl transition-all ${activeTab === 'IN_STOCK' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                >
+                  In-Stock ({inStockSeals.length})
+                </button>
+                <button 
+                  onClick={() => setActiveTab('USED')} 
+                  className={`flex-1 py-3 text-[11px] font-black uppercase tracking-widest rounded-xl transition-all ${activeTab === 'USED' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                >
+                  Used Inventory ({usedSeals.length})
+                </button>
+              </div>
+
               <div className="space-y-4 max-h-[600px] overflow-y-auto pr-2 custom-scrollbar">
                 {inStockSeals.length === 0 && usedSeals.length === 0 ? (
                   <div className="text-center py-20 bg-slate-50 rounded-[40px] border-2 border-dashed border-slate-200"><p className="text-xs font-black uppercase text-slate-400 tracking-[0.2em]">No seals found</p></div>
                 ) : (
                   <>
-                    {inStockSeals.length > 0 && (
-                      <div className="space-y-3">
-                        <h3 className="text-[11px] font-black uppercase tracking-widest text-slate-400 ml-2">In-Stock ({inStockSeals.length})</h3>
-                        {inStockSeals.map((seal) => (
-                          <SealCard
-                            key={seal.id} seal={seal}
-                            onSelect={setViewingSeal}
-                            onApply={() => { setActiveSeal(seal); setCurrentView('ISSUER'); }}
-                            onDelete={deleteSeal}
-                            isAdmin={userRole === 'admin'}
-                          />
-                        ))}
+                    {/* IN-STOCK TAB VIEW */}
+                    {activeTab === 'IN_STOCK' && (
+                      <div className="space-y-3 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                        {inStockSeals.length === 0 ? (
+                          <p className="text-center text-xs font-bold text-slate-400 mt-10 uppercase">No active seals in stock</p>
+                        ) : (
+                          inStockSeals.map((seal) => (
+                            <SealCard 
+                              key={seal.id} seal={seal} 
+                              onSelect={setViewingSeal} 
+                              onApply={() => { setActiveSeal(seal); setCurrentView('ISSUER'); }} 
+                              onDelete={deleteSeal} 
+                              isAdmin={userRole === 'admin'} 
+                            />
+                          ))
+                        )}
                       </div>
                     )}
 
-                    {usedSeals.length > 0 && (
-                      <div className="space-y-3 pt-4">
-                        <h3 className="text-[11px] font-black uppercase tracking-widest text-slate-400 ml-2">Used Inventory ({usedSeals.length})</h3>
-                        {usedSeals.map((seal) => (
-                          <SealCard
-                            key={seal.id} seal={seal}
-                            onSelect={setViewingSeal}
-                            onDelete={deleteSeal}
-                            isAdmin={userRole === 'admin'}
-                          />
-                        ))}
+                    {/* USED TAB VIEW */}
+                    {activeTab === 'USED' && (
+                      <div className="space-y-3 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                        {usedSeals.length === 0 ? (
+                          <p className="text-center text-xs font-bold text-slate-400 mt-10 uppercase">No used seals archived</p>
+                        ) : (
+                          usedSeals.map((seal) => (
+                            <SealCard 
+                              key={seal.id} seal={seal} 
+                              onSelect={setViewingSeal} 
+                              onDelete={deleteSeal} 
+                              isAdmin={userRole === 'admin'} 
+                            />
+                          ))
+                        )}
                       </div>
                     )}
                   </>
