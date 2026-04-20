@@ -117,6 +117,18 @@ export default function Home() {
     }
   }, [isAuthenticating]);
 
+  // --- PROCESSING FAIL-SAFE (NEW) ---
+  // If the app gets stuck on "Processing..." for more than 10 seconds anywhere, force a reload.
+  useEffect(() => {
+    if (isProcessing) {
+      const processingTimer = setTimeout(() => {
+        console.warn("Processing stalled due to dead network. Auto-reloading...");
+        window.location.reload();
+      }, 10000);
+      return () => clearTimeout(processingTimer);
+    }
+  }, [isProcessing]);
+
   // NUCLEAR RESET FUNCTION: Wipes browser memory to fix "Ghost" connections
   const handleDeepReset = async () => {
     toast.loading("Performing Deep Reset...");
@@ -191,33 +203,35 @@ export default function Home() {
     const details = Object.fromEntries(formData);
 
     try {
-      // 1. Verify the session hasn't died while the tab was idle
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) throw new Error("Session expired due to inactivity.");
-
-      // 2. Prepare the database update
-      const updatePromise = supabase.from('seals').update({
-        status: 'Applied',
-        issuer_name: issuerInfo.name,
-        issuer_title: issuerInfo.title,
-        container_num: details.containerNum,
-        dock_door: details.dockDoor,
-        company_name: details.companyName,
-        applied_by_name: details.appliedByName,
-        applied_by_title: details.appliedByTitle,
-        comments: details.comments,
-        applied_at: new Date()
-      }).eq('id', activeSeal.id);
-
-      // 3. Create an 8-second kill switch
+      // 1. Create the kill switch FIRST
       const timeoutPromise = new Promise((_, reject) =>
         setTimeout(() => reject(new Error("Network sleep detected.")), 8000)
       );
 
-      // 4. RACE! If the update takes longer than 8 seconds, the timeout wins and throws the error
-      const { error } = await Promise.race([updatePromise, timeoutPromise]);
+      // 2. Wrap ALL database calls (including the session check) inside one function
+      const databaseOperation = async () => {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session) throw new Error("Session expired due to inactivity.");
 
-      if (error) throw error;
+        const { error } = await supabase.from('seals').update({
+          status: 'Applied',
+          issuer_name: issuerInfo.name,
+          issuer_title: issuerInfo.title,
+          container_num: details.containerNum,
+          dock_door: details.dockDoor,
+          company_name: details.companyName,
+          applied_by_name: details.appliedByName,
+          applied_by_title: details.appliedByTitle,
+          comments: details.comments,
+          applied_at: new Date()
+        }).eq('id', activeSeal.id);
+
+        if (error) throw error;
+        return true;
+      };
+
+      // 3. RACE! the 8-second timer protects everything perfectly
+      await Promise.race([databaseOperation(), timeoutPromise]);
 
       toast.success("Record saved and archived.");
       setCurrentView('LIST');
