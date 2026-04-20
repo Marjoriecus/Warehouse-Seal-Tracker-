@@ -33,10 +33,10 @@ export default function Home() {
   const [currentView, setCurrentView] = useState('LIST');
   const [activeSeal, setActiveSeal] = useState(null);
   const [issuerInfo, setIssuerInfo] = useState({ name: '', title: '' });
-  
+
   // FIXED: Set the initial tab state to 'IN_STOCK'
-  const [activeTab, setActiveTab] = useState('IN_STOCK'); 
-  
+  const [activeTab, setActiveTab] = useState('IN_STOCK');
+
   // --- MODAL & UPLOAD STATE ---
   const [viewingSeal, setViewingSeal] = useState(null);
 
@@ -81,8 +81,24 @@ export default function Home() {
   };
 
   const handleLogout = async () => {
-    await supabase.auth.signOut();
-    toast.info('Logged out safely.');
+    toast.loading('Logging out...');
+    supabase.auth.signOut().catch(() => { });
+
+    // Manually kill the local memory immediately
+    window.localStorage.clear();
+    window.sessionStorage.clear();
+    document.cookie.split(";").forEach((c) => {
+      document.cookie = c
+        .replace(/^ +/, "")
+        .replace(/=.*/, "=;expires=" + new Date().toUTCString() + ";path=/");
+    });
+
+    toast.success('Logged out safely.');
+
+    // Force a hard refresh to the login screen
+    setTimeout(() => {
+      window.location.reload();
+    }, 500);
   };
 
   // --- 3. FAIL-SAFE TIMER & RESET ---
@@ -175,7 +191,12 @@ export default function Home() {
     const details = Object.fromEntries(formData);
 
     try {
-      const { error } = await supabase.from('seals').update({
+      // 1. Verify the session hasn't died while the tab was idle
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) throw new Error("Session expired due to inactivity.");
+
+      // 2. Prepare the database update
+      const updatePromise = supabase.from('seals').update({
         status: 'Applied',
         issuer_name: issuerInfo.name,
         issuer_title: issuerInfo.title,
@@ -188,15 +209,30 @@ export default function Home() {
         applied_at: new Date()
       }).eq('id', activeSeal.id);
 
+      // 3. Create an 8-second kill switch
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error("Network sleep detected.")), 8000)
+      );
+
+      // 4. RACE! If the update takes longer than 8 seconds, the timeout wins and throws the error
+      const { error } = await Promise.race([updatePromise, timeoutPromise]);
+
       if (error) throw error;
 
       toast.success("Record saved and archived.");
       setCurrentView('LIST');
       setActiveSeal(null);
-      // Photo reset removed
       fetchSeals();
     } catch (err) {
-      toast.error("Save failed: " + err.message);
+      toast.error(err.message === "Network sleep detected."
+        ? "Connection slept. Waking up..."
+        : "Save failed: " + err.message
+      );
+
+      // If the tab fell asleep or session died, force a quick refresh to heal the connection
+      if (err.message.includes("sleep") || err.message.includes("expired")) {
+        setTimeout(() => window.location.reload(), 1500);
+      }
     } finally {
       setIsProcessing(false);
     }
@@ -320,14 +356,14 @@ export default function Home() {
 
               {/* --- NEW TABBED VIEW UI --- */}
               <div className="flex bg-slate-200 p-1 rounded-2xl w-full max-w-sm mb-6">
-                <button 
-                  onClick={() => setActiveTab('IN_STOCK')} 
+                <button
+                  onClick={() => setActiveTab('IN_STOCK')}
                   className={`flex-1 py-3 text-[11px] font-black uppercase tracking-widest rounded-xl transition-all ${activeTab === 'IN_STOCK' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
                 >
                   In-Stock ({inStockSeals.length})
                 </button>
-                <button 
-                  onClick={() => setActiveTab('USED')} 
+                <button
+                  onClick={() => setActiveTab('USED')}
                   className={`flex-1 py-3 text-[11px] font-black uppercase tracking-widest rounded-xl transition-all ${activeTab === 'USED' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
                 >
                   Used Inventory ({usedSeals.length})
@@ -346,12 +382,12 @@ export default function Home() {
                           <p className="text-center text-xs font-bold text-slate-400 mt-10 uppercase">No active seals in stock</p>
                         ) : (
                           inStockSeals.map((seal) => (
-                            <SealCard 
-                              key={seal.id} seal={seal} 
-                              onSelect={setViewingSeal} 
-                              onApply={() => { setActiveSeal(seal); setCurrentView('ISSUER'); }} 
-                              onDelete={deleteSeal} 
-                              isAdmin={userRole === 'admin'} 
+                            <SealCard
+                              key={seal.id} seal={seal}
+                              onSelect={setViewingSeal}
+                              onApply={() => { setActiveSeal(seal); setCurrentView('ISSUER'); }}
+                              onDelete={deleteSeal}
+                              isAdmin={userRole === 'admin'}
                             />
                           ))
                         )}
@@ -365,11 +401,11 @@ export default function Home() {
                           <p className="text-center text-xs font-bold text-slate-400 mt-10 uppercase">No used seals archived</p>
                         ) : (
                           usedSeals.map((seal) => (
-                            <SealCard 
-                              key={seal.id} seal={seal} 
-                              onSelect={setViewingSeal} 
-                              onDelete={deleteSeal} 
-                              isAdmin={userRole === 'admin'} 
+                            <SealCard
+                              key={seal.id} seal={seal}
+                              onSelect={setViewingSeal}
+                              onDelete={deleteSeal}
+                              isAdmin={userRole === 'admin'}
                             />
                           ))
                         )}
